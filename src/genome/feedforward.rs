@@ -1,44 +1,6 @@
-use crate::genes::{Conn, Node};
+use crate::{genome::{Conn, Genome, Node}, population::{Config, Innov}};
 use rand::{seq::{IteratorRandom, SliceRandom}, Rng};
 use std::{array, cell::{OnceCell, RefCell}, collections::{BTreeMap, BTreeSet, HashMap, HashSet}, fmt, iter, rc::Rc};
-
-/// Provides an interface generic over a variety of neural network structures that is interoperable with the
-/// [`Population`](crate::population::Population).
-pub trait Genome<const I: usize, const O: usize> {
-	type Config;
-	type Innov;
-
-	/// Constructs a 'minimal' genome with no hidden nodes.
-	fn minimal(innov: &Self::Innov, config: &Self::Config) -> Self;
-
-	/// A single new connection with a random weight is added connecting two previously unconnected nodes.
-	fn mutate_add_conn(&mut self, rng: &mut impl Rng, innov: &Self::Innov, config: &Self::Config);
-
-	/// An existing connection is split and the new node placed where the old connection used to be. The old connection
-	/// is disabled and two new connections are added to the genome. The new connection leading into the new node
-	/// receives a weight of 1.0, and the new connection leading out receives the same weight as the old connection.
-	///
-	/// # Note
-	///
-	/// In Stanley's NEAT paper, this is referred to as the 'add node' mutation. I refer to it as the 'add connection'
-	/// mutation in my implementation because it is easier for me to understand that way.
-	fn mutate_split_conn(&mut self, rng: &mut impl Rng, innov: &Self::Innov, config: &Self::Config);
-
-	/// Mutates a random connection's weight.
-	fn mutate_conn_weight(&mut self, rng: &mut impl Rng, config: &Self::Config);
-
-	/// Activates the genome, taking an array of its inputs and returns an array of outputs.
-	fn activate(&self, inputs: [f32; I], config: &Self::Config) -> [f32; O];
-
-	/// Sets the genome's fitness.
-	fn set_fitness(&mut self, fitness: f32, config: &Self::Config);
-
-	/// Computes the compatibility distance between two genomes.
-	fn compat_dist(lhs: &Self, rhs: &Self, config: &Self::Config) -> f32;
-
-	/// Consumes two parent genomes and returns a child genome.
-	fn crossover(lhs: Self, rhs: Self, rng: &mut impl Rng, config: &Self::Config) -> Self;
-}
 
 /// The [feedforward](https://wikipedia.org/wiki/Feedforward_neural_network) implementation of the [`Genome`] trait.
 #[derive(Clone)]
@@ -90,37 +52,44 @@ impl<const I: usize, const O: usize> FeedForward<I, O> {
 	}
 
 	/// Performs the add connection mutation using set parameters.
-	pub(crate) fn add_conn(&mut self, input: Rc<Node>, output: Rc<Node>, weight: f32, innov: u32) -> Rc<Conn> {
-		let new_conn = self.insert_conn(Conn::new(input.clone(), output.clone(), weight, innov));
+	pub(crate) fn add_conn(&mut self, input: Rc<Node>, output: Rc<Node>, weight: f32, innov: &Innov) -> Rc<Conn> {
+		let new_conn = self.insert_conn(Conn::new(
+			input.clone(),
+			output.clone(),
+			weight,
+			innov.new_conn(input.clone(), output.clone())
+		));
+
 		input.insert_forward_conn(new_conn.clone());
 		output.insert_backward_conn(new_conn.clone());
+
 		new_conn.clone()
 	}
 
 	/// Performs the split connection mutation using set parameters.
-	pub(crate) fn split_conn(&mut self, old_conn: Rc<Conn>, innov_a: u32, innov_b: u32) {
+	pub(crate) fn split_conn(&mut self, old_conn: Rc<Conn>, innov: &Innov) {
 		old_conn.disable();
 
-		let new_node = self.insert_node(Node::new_hidden());
+		let new_node = self.insert_node(Node::new_hidden(innov.new_node()));
 
-		let conn_a = self.insert_conn(Conn::new(old_conn.input(), new_node.clone(), 1.0, innov_a));
+		let conn_a = self.insert_conn(Conn::new(
+			old_conn.input(),
+			new_node.clone(),
+			1.0,
+			innov.new_conn(old_conn.input(), new_node.clone())
+		));
+
 		let conn_b = self.insert_conn(Conn::new(
 			new_node.clone(),
 			old_conn.output(),
 			old_conn.weight(),
-			innov_b,
+			innov.new_conn(new_node.clone(), old_conn.output()),
 		));
 
-		new_node.insert_forward_conn(conn_b.clone());
+		old_conn.input().insert_forward_conn(conn_a.clone());
 		new_node.insert_backward_conn(conn_a.clone());
-
-		if old_conn.input().is_input() {
-			old_conn.input().insert_forward_conn(conn_a.clone());
-		}
-
-		if old_conn.output().is_output() {
-			old_conn.output().insert_backward_conn(conn_b.clone());
-		}
+		new_node.insert_forward_conn(conn_b.clone());
+		old_conn.output().insert_backward_conn(conn_b.clone());
 	}
 
 	/// Returns the genome's fitness.
@@ -134,23 +103,25 @@ impl<const I: usize, const O: usize> FeedForward<I, O> {
 	}
 
 	/// Returns an iterator over the genome's connections.
-	pub(crate) fn iter_conns(&self) -> impl Iterator<Item = Rc<Conn>> + '_ {
-		self.conns.iter().cloned()
+	pub(crate) fn iter_conns(&self) -> impl Iterator<Item = Rc<Conn>> {
+		self.conns.iter().cloned().collect::<Vec<_>>().into_iter()
 	}
 
 	/// Returns an iterator over the genome's input nodes.
-	pub(crate) fn iter_input(&self) -> impl Iterator<Item = Rc<Node>> + '_ {
-		self.input.iter().cloned()
+	#[allow(clippy::iter_cloned_collect)]
+	pub(crate) fn iter_input(&self) -> impl Iterator<Item = Rc<Node>> {
+		self.input.iter().cloned().collect::<Vec<_>>().into_iter()
 	}
 
 	/// Returns an iterator over the genome's hidden nodes.
-	pub(crate) fn iter_hidden(&self) -> impl Iterator<Item = Rc<Node>> + '_ {
-		self.hidden.iter().cloned()
+	pub(crate) fn iter_hidden(&self) -> impl Iterator<Item = Rc<Node>> {
+		self.hidden.iter().cloned().collect::<Vec<_>>().into_iter()
 	}
 
 	/// Returns an iterator over the genome's output nodes.
-	pub(crate) fn iter_output(&self) -> impl Iterator<Item = Rc<Node>> + '_ {
-		self.output.iter().cloned()
+	#[allow(clippy::iter_cloned_collect)]
+	pub(crate) fn iter_output(&self) -> impl Iterator<Item = Rc<Node>> {
+		self.output.iter().cloned().collect::<Vec<_>>().into_iter()
 	}
 }
 
@@ -159,7 +130,7 @@ impl<const I: usize, const O: usize> fmt::Debug for FeedForward<I, O> {
 		let mut output = f.debug_struct("FeedForward");
 
 		if !self.conns.is_empty() {
-			output.field("conns", &self.iter_conns().map(|conn| format!("{:p}", conn)).collect::<Vec<_>>());
+			output.field("conns", &self.iter_conns().collect::<Vec<_>>());
 		}
 
 		output.field("input", &self.iter_input().collect::<Vec<_>>());
@@ -180,19 +151,27 @@ impl<const I: usize, const O: usize> fmt::Debug for FeedForward<I, O> {
 
 impl<const I: usize, const O: usize> Genome<I, O> for FeedForward<I, O> {
 	type Config = Config;
-	type Innov = ();
+	type Innov = Innov;
 
-	fn minimal(innov: &Self::Innov, config: &Self::Config) -> Self {
-		debug_assert_ne!(I, 0);
-		debug_assert_ne!(O, 0);
+	fn minimal(rng: &mut impl Rng, innov: &Self::Innov, _config: &Self::Config) -> Self {
+		assert_ne!(I, 0);
+		assert_ne!(O, 0);
 
-		Self {
+		let mut minimal = Self {
 			conns: BTreeSet::new(),
-			input: iter::repeat_with(|| Rc::new(Node::new_input())).take(I).collect(),
+			input: iter::repeat_with(|| Rc::new(Node::new_input(innov.new_node()))).take(I).collect(),
 			hidden: HashSet::new(),
-			output: iter::repeat_with(|| Rc::new(Node::new_output())).take(O).collect(),
+			output: iter::repeat_with(|| Rc::new(Node::new_output(innov.new_node()))).take(O).collect(),
 			fitness: OnceCell::new(),
+		};
+
+		for input in minimal.iter_input() {
+			for output in minimal.iter_output() {
+				minimal.add_conn(input.clone(), output.clone(), rng.gen(), innov);
+			}
 		}
+
+		minimal
 	}
 
 	fn mutate_add_conn(&mut self, rng: &mut impl Rng, innov: &Self::Innov, config: &Self::Config) {
@@ -203,19 +182,21 @@ impl<const I: usize, const O: usize> Genome<I, O> for FeedForward<I, O> {
 		outputs.shuffle(rng);
 
 		let input = inputs.into_iter().find(|node| {
-			// (possible forward conns) - (nodes forward conns) > 0 node has at least one valid output node.
-			outputs.len() - (self.hidden.contains(node) as usize) - node.num_forward_conns() > 0
+			// (possible forward conns) - (node's forward conns) > 0 node has at least one valid output node.
+			outputs.len()
+				.saturating_sub(self.hidden.contains(node) as usize)
+				.saturating_sub(node.num_forward_conns()) > 0
 		}).unwrap();
 
 		let output = outputs.into_iter().find(|node| !node.any_backward_conns(|conn| conn.input() == input)).unwrap();
 
-		self.add_conn(input, output, rng.gen(), u32::MAX);
+		self.add_conn(input.clone(), output.clone(), rng.gen(), innov);
 	}
 
 	fn mutate_split_conn(&mut self, rng: &mut impl Rng, innov: &Self::Innov, config: &Self::Config) {
-		debug_assert_ne!(self.conns.len(), 0);
+		assert_ne!(self.conns.len(), 0);
 		let old_conn = self.iter_conns().filter(|conn| conn.enabled()).choose(rng).unwrap();
-		self.split_conn(old_conn, u32::MAX, u32::MAX);
+		self.split_conn(old_conn, innov);
 	}
 
 	fn mutate_conn_weight(&mut self, rng: &mut impl Rng, config: &Self::Config) {
@@ -352,5 +333,3 @@ impl<const I: usize, const O: usize> Genome<I, O> for FeedForward<I, O> {
 		}
 	}
 }
-
-pub struct Config;
