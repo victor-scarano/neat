@@ -26,18 +26,28 @@ pub use population::{Config, Population};
 #[cfg(test)]
 mod tests {
 	use crate::{*, genome::Genome, population::Innov};
+	use std::num::NonZeroUsize;
+	use rand::{seq::IteratorRandom, thread_rng, Rng};
 
 	#[test]
-	fn it_works() {
-		let mut rng = rand::thread_rng();
+	fn it_workls() {
+		let mut rng = thread_rng();
+
 		let innov = Innov::default();
-		let config = Config;
 
-		let a = FeedForward::<3, 1>::minimal(&mut rng, &innov, &config);
-		// a.mutate_split_conn(&mut rng, &innov, &config);
-		dbg!(&a);
+		let config = Config {
+			num_inputs: NonZeroUsize::new(3).unwrap(),
+			num_outputs: NonZeroUsize::new(1).unwrap(),
+		};
 
-		// TODO: Fix bug where there are two input and output nodes in child genome.
-		// NOTE: Introduced by change at the end of [`Genome::split_conn`].
+		let mut genome = FeedForward::minimal(&mut rng, &innov, &config);
+
+		let some_conn = genome.iter_conns().choose(&mut rng).unwrap();
+		let new_conn = genome.add_conn(some_conn.input(), some_conn.output(), rng.gen(), &innov);
+		assert_eq!(some_conn.innov(), new_conn.innov());
+
+		let (some_conn, _) = genome.split_conn(some_conn, &innov);
+		let new_conn = genome.add_conn(some_conn.input(), some_conn.output(), rng.gen(), &innov);
+		assert_eq!(some_conn.innov(), new_conn.innov());
 	}
 }

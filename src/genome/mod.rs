@@ -14,7 +14,7 @@ pub use recurrent::Recurrent;
 
 /// Provides an interface generic over a variety of neural network structures that is interoperable with the
 /// [`Population`](crate::population::Population).
-pub(crate) trait Genome<const I: usize, const O: usize> {
+pub(crate) trait Genome {
 	type Config;
 	type Innov;
 
@@ -38,7 +38,12 @@ pub(crate) trait Genome<const I: usize, const O: usize> {
 	fn mutate_conn_weight(&mut self, rng: &mut impl Rng, config: &Self::Config);
 
 	/// Activates the genome, taking an array of its inputs and returns an array of outputs.
-	fn activate(&self, inputs: [f32; I], config: &Self::Config) -> [f32; O];
+	///
+	/// # Panics
+	///
+	/// Panics if the number of inputs provided and the number of outputs calculated do not match those of the rest of
+	/// the population.
+	fn activate(&self, inputs: impl AsRef<[f32]>, config: &Self::Config) -> impl AsRef<[f32]>;
 
 	/// Sets the genome's fitness.
 	fn set_fitness(&mut self, fitness: f32, config: &Self::Config);
@@ -47,5 +52,15 @@ pub(crate) trait Genome<const I: usize, const O: usize> {
 	fn compat_dist(lhs: &Self, rhs: &Self, config: &Self::Config) -> f32;
 
 	/// Consumes two parent genomes and returns a child genome.
+	///
+	/// # Note
+	///
+	/// The offspring's genes should not reference either of the parents' genes. This is to prevent mutations to the
+	/// parents in the case of a mutation to their offspring. This also prevents cyclic references in the case of
+	/// inbreeding.
+	///
+	/// # Panics
+	///
+	/// Panics if the parents do not have the same number of inputs and outputs.
 	fn crossover(lhs: Self, rhs: Self, rng: &mut impl Rng, config: &Self::Config) -> Self;
 }

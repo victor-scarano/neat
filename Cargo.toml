@@ -5,3 +5,7 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.5"
+
+[dev-dependencies]
+# itertools = "0.13.0"
+# pretty_assertions = "1.4.0"

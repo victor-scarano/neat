@@ -1,10 +1,10 @@
 use crate::{genome::{Conn, Genome, Node}, population::{Config, Innov}};
 use rand::{seq::{IteratorRandom, SliceRandom}, Rng};
-use std::{array, cell::{OnceCell, RefCell}, collections::{BTreeMap, BTreeSet, HashMap, HashSet}, fmt, iter, rc::Rc};
+use std::{cell::{OnceCell, RefCell}, collections::{BTreeMap, BTreeSet, HashMap, HashSet}, fmt, iter, rc::Rc};
 
 /// The [feedforward](https://wikipedia.org/wiki/Feedforward_neural_network) implementation of the [`Genome`] trait.
 #[derive(Clone)]
-pub struct FeedForward<const I: usize, const O: usize> {
+pub struct FeedForward {
 	/// The set of connections in the genome.
 	///
 	/// We use a [`BTreeSet`] as the collection type for 3 main reasons:
@@ -36,7 +36,7 @@ pub struct FeedForward<const I: usize, const O: usize> {
 	fitness: OnceCell<f32>,
 }
 
-impl<const I: usize, const O: usize> FeedForward<I, O> {
+impl FeedForward {
 	/// Inserts a connection into the genome and returns an [`Rc`] of that connection.
 	pub(crate) fn insert_conn(&mut self, conn: Conn) -> Rc<Conn> {
 		let conn = Rc::new(conn);
@@ -63,11 +63,11 @@ impl<const I: usize, const O: usize> FeedForward<I, O> {
 		input.insert_forward_conn(new_conn.clone());
 		output.insert_backward_conn(new_conn.clone());
 
-		new_conn.clone()
+		new_conn
 	}
 
 	/// Performs the split connection mutation using set parameters.
-	pub(crate) fn split_conn(&mut self, old_conn: Rc<Conn>, innov: &Innov) {
+	pub(crate) fn split_conn(&mut self, old_conn: Rc<Conn>, innov: &Innov) -> (Rc<Conn>, Rc<Conn>) {
 		old_conn.disable();
 
 		let new_node = self.insert_node(Node::new_hidden(innov.new_node()));
@@ -90,6 +90,8 @@ impl<const I: usize, const O: usize> FeedForward<I, O> {
 		new_node.insert_backward_conn(conn_a.clone());
 		new_node.insert_forward_conn(conn_b.clone());
 		old_conn.output().insert_backward_conn(conn_b.clone());
+
+		(conn_a, conn_b)
 	}
 
 	/// Returns the genome's fitness.
@@ -125,7 +127,7 @@ impl<const I: usize, const O: usize> FeedForward<I, O> {
 	}
 }
 
-impl<const I: usize, const O: usize> fmt::Debug for FeedForward<I, O> {
+impl fmt::Debug for FeedForward {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let mut output = f.debug_struct("FeedForward");
 
@@ -149,19 +151,16 @@ impl<const I: usize, const O: usize> fmt::Debug for FeedForward<I, O> {
 	}
 }
 
-impl<const I: usize, const O: usize> Genome<I, O> for FeedForward<I, O> {
+impl Genome for FeedForward {
 	type Config = Config;
 	type Innov = Innov;
 
-	fn minimal(rng: &mut impl Rng, innov: &Self::Innov, _config: &Self::Config) -> Self {
-		assert_ne!(I, 0);
-		assert_ne!(O, 0);
-
+	fn minimal(rng: &mut impl Rng, innov: &Self::Innov, config: &Self::Config) -> Self {
 		let mut minimal = Self {
 			conns: BTreeSet::new(),
-			input: iter::repeat_with(|| Rc::new(Node::new_input(innov.new_node()))).take(I).collect(),
+			input: iter::repeat_with(|| Rc::new(Node::new_input(innov.new_node()))).take(config.num_inputs()).collect(),
 			hidden: HashSet::new(),
-			output: iter::repeat_with(|| Rc::new(Node::new_output(innov.new_node()))).take(O).collect(),
+			output: iter::repeat_with(|| Rc::new(Node::new_output(innov.new_node()))).take(config.num_outputs()).collect(),
 			fitness: OnceCell::new(),
 		};
 
@@ -200,10 +199,18 @@ impl<const I: usize, const O: usize> Genome<I, O> for FeedForward<I, O> {
 	}
 
 	fn mutate_conn_weight(&mut self, rng: &mut impl Rng, config: &Self::Config) {
-		todo!();
+		let weight_perturbation_preference = 9.0 / 10.0;
+
+		let random_conn = self.iter_conns().filter(|conn| conn.enabled()).choose(rng).unwrap();
+		match rng.gen_bool(weight_perturbation_preference) {
+			true => random_conn.perturbe_weight(rng),
+			false => random_conn.replace_weight(rng),
+		}
 	}
 
-	fn activate(&self, inputs: [f32; I], config: &Self::Config) -> [f32; O] {
+	fn activate(&self, inputs: impl AsRef<[f32]>, config: &Self::Config) -> impl AsRef<[f32]> {
+		let inputs = inputs.as_ref();
+
 		let mut nodes = BTreeMap::from_iter(self.iter_input().enumerate().map(|(i, node)| (node.clone(), inputs[i])));
 
 		while let Some((node, val)) = nodes.pop_last() {
@@ -218,7 +225,7 @@ impl<const I: usize, const O: usize> Genome<I, O> for FeedForward<I, O> {
 			}
 		}
 
-		array::from_fn::<_, O, _>(|i| nodes.get(&self.output[i]).cloned().unwrap())
+		(0..config.num_outputs()).map(|i| nodes.get(&self.output[i]).cloned().unwrap()).collect::<Vec<_>>()
 	}
 
 	fn set_fitness(&mut self, fitness: f32, config: &Self::Config) {

@@ -1,3 +1,5 @@
+use rand::Rng;
+
 use super::Node;
 use std::{cell::Cell, cmp::Ordering, fmt, hash, rc::Rc};
 
@@ -17,7 +19,10 @@ pub(crate) struct Conn {
 	output: Cell<Rc<Node>>,
 
 	/// The weight of the connection.
-	weight: f32,
+	///
+	/// We wrap the [`f32`] in a [`Cell`] to provide interior mutability of the weight, since most method calls to
+	/// `Self` are handled through an [`Rc`].
+	weight: Cell<f32>,
 
 	/// The enabled status of the connection.
 	///
@@ -38,7 +43,7 @@ impl Conn {
 		Self {
 			input: Cell::new(input),
 			output: Cell::new(output),
-			weight,
+			weight: Cell::new(weight),
 			enabled: Cell::new(true),
 			innov,
 		}
@@ -98,7 +103,7 @@ impl Conn {
 
 	/// Returns the weight of the connection.
 	pub fn weight(&self) -> f32 {
-		self.weight
+		self.weight.get()
 	}
 
 	/// Returns the enabled status of the connection.
@@ -109,6 +114,19 @@ impl Conn {
 	/// Disables the connection.
 	pub fn disable(&self) {
 		self.enabled.set(false);
+	}
+
+	pub fn innov(&self) -> u32 {
+		self.innov
+	}
+
+	pub fn perturbe_weight(&self, rng: &mut impl Rng) {
+		let weight = self.weight.take();
+		self.weight.set(weight + rng.gen::<f32>());
+	}
+
+	pub fn replace_weight(&self, rng: &mut impl Rng) {
+		self.weight.set(rng.gen())
 	}
 
 	/// Returns an iterator over the connections input and output nodes.
@@ -122,7 +140,7 @@ impl Clone for Conn {
 		Self {
 			input: Cell::new(self.input()),
 			output: Cell::new(self.output()),
-			weight: self.weight,
+			weight: self.weight.clone(),
 			enabled: self.enabled.clone(),
 			innov: self.innov,
 		}
