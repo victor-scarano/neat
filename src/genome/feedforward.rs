@@ -1,4 +1,4 @@
-use crate::{genome::{Conn, Genome, Node}, population::{Config, Innov}};
+use crate::{Config, genome::{Conn, Genome, Node}, Innov};
 use rand::{seq::{IteratorRandom, SliceRandom}, Rng};
 use std::{cell::{OnceCell, RefCell}, collections::{BTreeMap, BTreeSet, HashMap, HashSet}, fmt, iter, rc::Rc};
 

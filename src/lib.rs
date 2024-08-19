@@ -14,18 +14,27 @@
 //! - [ ] Evolution of multiple populations concurrently
 //! - [ ] Concurrent evolution of a single population
 
+pub(crate) mod activation;
+
+pub(crate) mod config;
+
 /// Provides a [`FeedForward`] and [`Recurrent`] neural network implementations of the [`Genome`] trait (also defined
 /// in this module), as well as the [`Conn`] and [`Node`] genes used to represent them.
 pub(crate) mod genome;
 
+pub(crate) mod innov;
+
 pub(crate) mod population;
 
+pub use activation::{Activation, activations};
+pub use config::Config;
 pub use genome::{FeedForward, Recurrent};
-pub use population::{Config, Population};
+pub(crate) use innov::Innov;
+pub use population::Population;
 
 #[cfg(test)]
 mod tests {
-	use crate::{*, genome::Genome, population::Innov};
+	use crate::{*, genome::Genome};
 	use std::num::NonZeroUsize;
 	use rand::{seq::IteratorRandom, thread_rng, Rng};
 

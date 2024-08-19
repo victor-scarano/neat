@@ -1,5 +1,4 @@
-use std::{cell::{Cell, RefCell}, collections::{HashMap, HashSet}, rc::Rc};
-
+use std::{cell::{Cell, RefCell}, collections::HashMap, rc::Rc};
 use crate::genome::Node;
 
 /// A possible problem is that the same structural innovation will receive different innovation numbers in the same
