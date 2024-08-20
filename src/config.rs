@@ -1,10 +1,10 @@
-use crate::Activation;
+use crate::{activation, Activation};
 use std::{cell::OnceCell, num::NonZero};
 use rand::{seq::SliceRandom, Rng};
 
 pub struct Config {
     pop_size: usize,
-    activations: Vec<Activation>,
+    activations: OnceCell<Vec<Activation>>,
     default_activation: OnceCell<Activation>,
     activation_mutate_rate: f32,
     // TODO: Aggregation.
@@ -23,7 +23,7 @@ impl Config {
     pub fn new(pop_size: NonZero<usize>, num_inputs: NonZero<usize>, num_outputs: NonZero<usize>) -> Self {
         Self {
             pop_size: pop_size.get(),
-            activations: Vec::new(),
+            activations: OnceCell::new(),
             default_activation: OnceCell::new(),
             activation_mutate_rate: 0.5,
             compat_disjoint_coeff: 0.5,
@@ -38,18 +38,19 @@ impl Config {
     }
 
     fn update_default_activation(&mut self, rng: &mut impl Rng) {
-        let choice = self.activations.choose(rng).cloned().unwrap();
+        let choice = self.activations.get_or_init(|| vec![activation::Sigmoid.into()]).choose(rng).cloned().unwrap();
         let _ = self.default_activation.set(choice);
     }
 
     pub fn with_activations(mut self, rng: &mut impl Rng, activations: impl IntoIterator<Item = impl Into<Activation>>) -> Self {
-        self.activations = activations.into_iter().map(|activation| activation.into()).collect();
+        let _ = self.activations.set(activations.into_iter().map(|activation| activation.into()).collect());
         self.update_default_activation(rng);
         self
     }
 
     pub fn insert_activation(mut self, rng: &mut impl Rng, activation: impl Into<Activation>) -> Self {
-        self.activations.push(activation.into());
+        let _ = self.activations.get_or_init(|| Vec::new());
+        self.activations.get_mut().unwrap().push(activation.into());
         self.update_default_activation(rng);
         self
     }
@@ -95,7 +96,7 @@ impl Config {
     }
 
     pub(crate) fn activations(&self) -> impl Iterator<Item = &Activation> {
-        self.activations.iter()
+        self.activations.get_or_init(|| vec![activation::Sigmoid.into()]).iter()
     }
 
     pub(crate) fn default_activation(&self) -> Activation {

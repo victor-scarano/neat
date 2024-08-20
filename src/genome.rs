@@ -161,6 +161,7 @@ impl Genome {
     }
 
     pub(crate) fn activate(&self, inputs: impl AsRef<[f32]>, config: &Config) -> impl AsRef<[f32]> {
+        // activation ( bias + ( response * aggregation ( inputs ) ) )
         let inputs = inputs.as_ref();
 
         let mut nodes = BTreeMap::from_iter(self.iter_input().enumerate().map(|(i, node)| (node.clone(), inputs[i])));

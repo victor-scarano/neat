@@ -8,6 +8,7 @@ pub(crate) struct Node {
     forward: RefCell<BTreeSet<Rc<Connection>>>,
     backward: RefCell<BTreeSet<Rc<Connection>>>,
     activation: RefCell<Activation>,
+    // bias: f32,
     innovation: u32,
 }
 
