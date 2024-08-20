@@ -4,34 +4,10 @@ use std::{cell::{OnceCell, RefCell}, collections::{BTreeMap, BTreeSet, HashMap, 
 
 #[derive(Clone)]
 pub struct Genome {
-    /// The set of connections in the genome.
-    ///
-    /// We use a [`BTreeSet`] as the collection type for 3 main reasons:
-    ///
-    /// 1. O(n)~ iteration with preserved ordering.
-    /// 2. Relatively fast O(log(n)) retrievals, insertions, and removals.
-    /// 3. Access to the [`BTreeSet::intersection`], [`BTreeSet::difference`], and [`BTreeSet::symmetric_difference`]
-    ///    functions that are useful during crossover.
     conns: BTreeSet<Rc<Connection>>,
-
-    /// The genome's input nodes.
     input: Box<[Rc<Node>]>,
-
-    /// The set of hidden nodes in the genome.
-    ///
-    /// We use a [`HashSet`] as the collection type for 2 main reasons.
-    ///
-    /// 1. O(n) iteration.
-    /// 2. Extremely fast O(1)~ retrievals, insertions, and removals.
     hidden: HashSet<Rc<Node>>,
-
-    /// The genome's output nodes.
     output: Box<[Rc<Node>]>,
-
-    /// The genome's fitness.
-    ///
-    /// We wrap the [`f32`] in a [`OnceCell`] so that we can ensure that the fitness is only initialized once, and so
-    /// that we can initialize the fitness without a `&mut self`
     fitness: OnceCell<f32>,
 }
 
