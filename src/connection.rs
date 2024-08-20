@@ -1,11 +1,10 @@
 use rand::Rng;
-
-use super::Node;
+use crate::Node;
 use std::{cell::Cell, cmp::Ordering, fmt, hash, rc::Rc};
 
-/// A connection between two [`Node`]s (also known as neurons) within the genome.
+/// A connection between two [`Node`]s (also known as neurons) within the [`Genome`](crate::Genome).
 #[derive(Default)]
-pub(crate) struct Conn {
+pub(crate) struct Connection {
 	/// The [`Node`] leading into the connection.
 	///
 	/// We wrap [`Rc<Node>`] in a [`Cell`] to be able to safely [`mem::swap`](std::mem::swap) the [`Rc`] to point to a
@@ -31,10 +30,10 @@ pub(crate) struct Conn {
 	enabled: Cell<bool>,
 
 	/// The innovation of the connection.
-	innov: u32,
+	innovation: u32,
 }
 
-impl Conn {
+impl Connection {
 	/// Constructs a new connection.
 	///
 	/// The input and output parameters to this function are [`Rc<Node>`]s instead of [`Node`]s because it (somewhat)
@@ -45,7 +44,7 @@ impl Conn {
 			output: Cell::new(output),
 			weight: Cell::new(weight),
 			enabled: Cell::new(true),
-			innov,
+			innovation: innov,
 		}
 	}
 
@@ -116,8 +115,9 @@ impl Conn {
 		self.enabled.set(false);
 	}
 
-	pub fn innov(&self) -> u32 {
-		self.innov
+    /// Returns the node's innovation.
+	pub fn innovation(&self) -> u32 {
+		self.innovation
 	}
 
 	pub fn perturbe_weight(&self, rng: &mut impl Rng) {
@@ -135,21 +135,21 @@ impl Conn {
 	}
 }
 
-impl Clone for Conn {
+impl Clone for Connection {
 	fn clone(&self) -> Self {
 		Self {
 			input: Cell::new(self.input()),
 			output: Cell::new(self.output()),
 			weight: self.weight.clone(),
 			enabled: self.enabled.clone(),
-			innov: self.innov,
+			innovation: self.innovation,
 		}
 	}
 }
 
-impl Eq for Conn {}
+impl Eq for Connection {}
 
-impl fmt::Debug for Conn {
+impl fmt::Debug for Connection {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Conn")
 			.field("addr", &format_args!("{:?}", self as *const Self))
@@ -157,31 +157,31 @@ impl fmt::Debug for Conn {
 			.field("output", &format_args!("{:p}", self.output()))
 			.field("weight", &self.weight)
 			.field("enabled", &self.enabled())
-			.field("innov", &self.innov)
+			.field("innov", &self.innovation)
 			.finish()
 	}
 }
 
-impl hash::Hash for Conn {
+impl hash::Hash for Connection {
 	fn hash<H: hash::Hasher>(&self, state: &mut H) {
 		Rc::as_ptr(&self.input()).hash(state);
 		Rc::as_ptr(&self.output()).hash(state);
 	}
 }
 
-impl Ord for Conn {
+impl Ord for Connection {
 	fn cmp(&self, other: &Self) -> Ordering {
-		self.innov.cmp(&other.innov)
+		self.innovation.cmp(&other.innovation)
 	}
 }
 
-impl PartialEq for Conn {
+impl PartialEq for Connection {
 	fn eq(&self, other: &Self) -> bool {
 		Rc::ptr_eq(&self.input(), &other.input()) && Rc::ptr_eq(&self.output(), &other.output())
 	}
 }
 
-impl PartialOrd for Conn {
+impl PartialOrd for Connection {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
 	}

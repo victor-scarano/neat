@@ -1,6 +1,4 @@
-#[allow(dead_code)]
-
-use crate::activations::Activation;
+use crate::Activation;
 use std::{cell::OnceCell, num::NonZero};
 use rand::seq::SliceRandom;
 
@@ -9,7 +7,7 @@ pub struct Config {
     pop_size: usize,
 
     /// A list of the activation functions that may be used by nodes.
-    /// This defaults to [`Sigmoid`](activations::Sigmoid).
+    /// This defaults to [`Sigmoid`](crate::activations::Sigmoid).
     activations: Vec<Activation>,
     /// The default activation function assigned to new nodes.
     /// If [`None`] is given, then one of the activations in [`Self::activations`] will be chosen at random.
@@ -47,6 +45,11 @@ impl Config {
             activations: Vec::new(),
             default_activation: OnceCell::new(),
             activation_mutate_rate: 0.5,
+            compat_disjoint_coeff: 0.5,
+            compat_weight_coeff: 0.5,
+            add_conn_prob: 0.5,
+            remove_conn_prob: 0.5,
+            enabled_default: true,
             num_inputs: num_inputs.get(),
             num_hidden: 0,
             num_outputs: num_outputs.get(),
@@ -55,7 +58,7 @@ impl Config {
 
     fn update_default_activation(&mut self) {
         let choice = self.activations.choose(&mut rand::thread_rng()).cloned().unwrap();
-        self.default_activation.set(choice).unwrap();
+        let _ = self.default_activation.set(choice);
     }
 
     pub fn with_activations(mut self, activations: impl IntoIterator<Item = impl Into<Activation>>) -> Self {
