@@ -1,11 +1,6 @@
-use std::{cell::{Cell, RefCell}, collections::HashMap, rc::Rc};
 use crate::Node;
+use std::{cell::{Cell, RefCell}, collections::HashMap, rc::Rc};
 
-/// A possible problem is that the same structural innovation will receive different innovation numbers in the same
-/// generation if it occurs by chance more than once. However, by keeping a list of the innovations that occurred in
-/// the current generation, it is possible to ensure that when the same structure arises more than once through
-/// independent mutations in the same generation, each identical mutation is assigned the same innovation number. Thus,
-/// there is no resultant explosion of innovation numbers.
 #[derive(Debug, Default)]
 pub(crate) struct Innovation {
 	conns: RefCell<HashMap<(u32, u32), u32>>,

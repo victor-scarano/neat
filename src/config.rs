@@ -3,36 +3,17 @@ use std::{cell::OnceCell, num::NonZero};
 use rand::seq::SliceRandom;
 
 pub struct Config {
-    /// The number of individuals in each generation.
     pop_size: usize,
-
-    /// A list of the activation functions that may be used by nodes.
-    /// This defaults to [`Sigmoid`](crate::activations::Sigmoid).
     activations: Vec<Activation>,
-    /// The default activation function assigned to new nodes.
-    /// If [`None`] is given, then one of the activations in [`Self::activations`] will be chosen at random.
     default_activation: OnceCell<Activation>,
-    /// The probability that mutation will replace the node's activation function with a randomly determined member of
-    /// the activations in [`Self::activation_options`].
     activation_mutate_rate: f32,
-
     // TODO: Aggregation.
     // TODO: Bias.
-    
-    /// The coefficient for the disjoint and excess gene counts' contribution to the genomic distance.
     compat_disjoint_coeff: f32,
-    /// The coefficient for each weight, bias, or response multiplier difference's contribution to the genomic distance
-    /// (for homologous nodes or connections). This is also used as the value to add for differences in activation
-    /// functions, aggregation functions, or enabled/disabled status.
     compat_weight_coeff: f32,
-
-    /// The probability that mutation will add a connection between existing nodes.
     add_conn_prob: f32,
-    /// The probability that mutation will remove an existing connection.
     remove_conn_prob: f32,
-    /// Whether or not new connections are enabled by default.
     enabled_default: bool,
-
 	num_inputs: usize,
     num_hidden: usize,
 	num_outputs: usize,
@@ -108,8 +89,6 @@ impl Config {
         self.enabled_default = false;
         self
     }
-
-
 
     pub(crate) fn pop_size(&self) -> usize {
         self.pop_size

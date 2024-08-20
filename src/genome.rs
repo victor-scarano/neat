@@ -2,7 +2,6 @@ use crate::{Config, Connection, Innovation, Node};
 use rand::{seq::{IteratorRandom, SliceRandom}, Rng};
 use std::{cell::{OnceCell, RefCell}, collections::{BTreeMap, BTreeSet, HashMap, HashSet}, fmt, iter, rc::Rc};
 
-/// The [feedforward](https://wikipedia.org/wiki/Feedforward_neural_network) implementation of the [`Genome`] trait.
 #[derive(Clone)]
 pub struct Genome {
     /// The set of connections in the genome.
@@ -37,21 +36,18 @@ pub struct Genome {
 }
 
 impl Genome {
-    /// Inserts a connection into the genome and returns an [`Rc`] of that connection.
     pub(crate) fn insert_conn(&mut self, conn: Connection) -> Rc<Connection> {
         let conn = Rc::new(conn);
         self.conns.insert(conn.clone());
         conn.clone()
     }
 
-    /// Inserts a node into the genome and returns an [`Rc`] of that node.
     pub(crate) fn insert_node(&mut self, node: Node) -> Rc<Node> {
         let node = Rc::new(node);
         self.hidden.insert(node.clone());
         self.hidden.get(&node).cloned().unwrap()
     }
 
-    /// Performs the add connection mutation using set parameters.
     pub(crate) fn add_conn(
         &mut self,
         input: Rc<Node>,
@@ -72,7 +68,6 @@ impl Genome {
         new_conn
     }
 
-    /// Performs the split connection mutation using set parameters.
     pub(crate) fn split_conn(
         &mut self,
         old_conn: Rc<Connection>,
@@ -104,33 +99,24 @@ impl Genome {
         (conn_a, conn_b)
     }
 
-    /// Returns the genome's fitness.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the fitness has not already been set.
     pub(crate) fn fitness(&self) -> f32 {
         let fitness = self.fitness.get();
         fitness.cloned().unwrap()
     }
 
-    /// Returns an iterator over the genome's connections.
     pub(crate) fn iter_conns(&self) -> impl Iterator<Item = Rc<Connection>> {
         self.conns.iter().cloned().collect::<Vec<_>>().into_iter()
     }
 
-    /// Returns an iterator over the genome's input nodes.
     pub(crate) fn iter_input(&self) -> impl Iterator<Item = Rc<Node>> {
         #[allow(clippy::iter_cloned_collect)]
         self.input.iter().cloned().collect::<Vec<_>>().into_iter()
     }
 
-    /// Returns an iterator over the genome's hidden nodes.
     pub(crate) fn iter_hidden(&self) -> impl Iterator<Item = Rc<Node>> {
         self.hidden.iter().cloned().collect::<Vec<_>>().into_iter()
     }
 
-    /// Returns an iterator over the genome's output nodes.
     pub(crate) fn iter_output(&self) -> impl Iterator<Item = Rc<Node>> {
         #[allow(clippy::iter_cloned_collect)]
         self.output.iter().cloned().collect::<Vec<_>>().into_iter()
