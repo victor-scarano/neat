@@ -14,7 +14,7 @@
 //! - [ ] Evolution of multiple populations concurrently
 //! - [ ] Concurrent evolution of a single population
 
-pub(crate) mod activation;
+pub(crate) mod activations;
 
 pub(crate) mod config;
 
@@ -26,7 +26,7 @@ pub(crate) mod innov;
 
 pub(crate) mod population;
 
-pub use activation::{Activation, activations};
+pub use activations::*;
 pub use config::Config;
 pub use genome::{FeedForward, Recurrent};
 pub(crate) use innov::Innov;
@@ -36,11 +36,11 @@ pub use population::Population;
 mod tests {
 	use crate::{*, genome::Genome};
 	use std::num::NonZeroUsize;
-	use rand::{seq::IteratorRandom, thread_rng, Rng};
+	use rand::{seq::IteratorRandom, Rng};
 
 	#[test]
 	fn it_workls() {
-		let mut rng = thread_rng();
+		let mut rng = rand::thread_rng();
 
 		let innov = Innov::default();
 
