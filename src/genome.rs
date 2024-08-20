@@ -47,11 +47,12 @@ impl Genome {
     pub(crate) fn split_conn(
         &mut self,
         old_conn: Rc<Connection>,
-        innov: &Innovation
+        innov: &Innovation,
+        config: &Config,
     ) -> (Rc<Connection>, Rc<Connection>) {
         old_conn.disable();
 
-        let new_node = self.insert_node(Node::new_hidden(innov.new_node()));
+        let new_node = self.insert_node(Node::new_hidden(innov, config));
 
         let conn_a = self.insert_conn(Connection::new(
             old_conn.input(),
@@ -99,25 +100,27 @@ impl Genome {
     }
 
     pub(crate) fn new(rng: &mut impl Rng, innov: &Innovation, config: &Config) -> Self {
-        let mut minimal = Self {
+        // TODO: Update to reflect changes to config.
+
+        let mut genome = Self {
             conns: BTreeSet::new(),
-            input: iter::repeat_with(|| Rc::new(Node::new_input(innov.new_node())))
-                .take(config.num_inputs())
-                .collect(),
+            input: iter::repeat_with(|| {
+                Rc::new(Node::new_input(innov, config))
+            }).take(config.num_inputs()).collect(),
             hidden: HashSet::new(),
-            output: iter::repeat_with(|| Rc::new(Node::new_output(innov.new_node())))
-                .take(config.num_outputs())
-                .collect(),
+            output: iter::repeat_with(|| {
+                Rc::new(Node::new_output(innov, config))
+            }).take(config.num_outputs()).collect(),
             fitness: OnceCell::new(),
         };
 
-        for input in minimal.iter_input() {
-            for output in minimal.iter_output() {
-                minimal.add_conn(input.clone(), output.clone(), rng.gen(), innov);
+        for input in genome.iter_input() {
+            for output in genome.iter_output() {
+                genome.add_conn(input.clone(), output.clone(), rng.gen(), innov);
             }
         }
 
-        minimal
+        genome
     }
 
     pub(crate) fn mutate_add_conn(&mut self, rng: &mut impl Rng, innov: &Innovation, config: &Config) {
@@ -127,22 +130,24 @@ impl Genome {
         let mut outputs = self.iter_hidden().chain(self.iter_output()).collect::<Vec<_>>();
         outputs.shuffle(rng);
 
-        let input = inputs.into_iter().find(|node| {
+        let random_input = inputs.into_iter().find(|node| {
             // (possible forward conns) - (node's forward conns) > 0 node has at least one valid output node.
             outputs.len()
                 .saturating_sub(self.hidden.contains(node) as usize)
                 .saturating_sub(node.num_forward_conns()) > 0
         }).unwrap();
 
-        let output = outputs.into_iter().find(|node| !node.any_backward_conns(|conn| conn.input() == input)).unwrap();
+        let random_output = outputs.into_iter().find(|node| {
+            !node.any_backward_conns(|conn| conn.input() == random_input)
+        }).unwrap();
 
-        self.add_conn(input.clone(), output.clone(), rng.gen(), innov);
+        self.add_conn(random_input, random_output, rng.gen(), innov);
     }
 
     pub(crate) fn mutate_split_conn(&mut self, rng: &mut impl Rng, innov: &Innovation, config: &Config) {
         assert_ne!(self.conns.len(), 0);
-        let old_conn = self.iter_conns().filter(|conn| conn.enabled()).choose(rng).unwrap();
-        self.split_conn(old_conn, innov);
+        let random_conn = self.iter_conns().filter(|conn| conn.enabled()).choose(rng).unwrap();
+        self.split_conn(random_conn, innov, config);
     }
 
     pub(crate) fn mutate_conn_weight(&mut self, rng: &mut impl Rng, config: &Config) {

@@ -1,39 +1,44 @@
-use crate::Connection;
+use crate::{Activation, Config, Connection, Innovation};
 use std::{cell::RefCell, cmp::Ordering, collections::BTreeSet, fmt, hash, rc::Rc};
+use rand::{seq::IteratorRandom, Rng};
 
-#[derive(Default, Clone, Eq)]
+#[derive(Default, Clone)]
 pub(crate) struct Node {
     kind: NodeKind,
     forward: RefCell<BTreeSet<Rc<Connection>>>,
     backward: RefCell<BTreeSet<Rc<Connection>>>,
+    activation: RefCell<Activation>,
     innovation: u32,
 }
 
 impl Node {
-    pub(crate) fn new_input(innov: u32) -> Self {
+    pub(crate) fn new_input(innov: &Innovation, config: &Config) -> Self {
         Self {
             kind: NodeKind::Input,
             forward: RefCell::new(BTreeSet::new()),
             backward: RefCell::new(BTreeSet::new()),
-            innovation: innov,
+            activation: RefCell::new(config.default_activation()),
+            innovation: innov.new_node(),
         }
     }
 
-    pub(crate) fn new_hidden(innov: u32) -> Self {
+    pub(crate) fn new_hidden(innov: &Innovation, config: &Config) -> Self {
         Self {
             kind: NodeKind::Hidden,
             forward: RefCell::new(BTreeSet::new()),
             backward: RefCell::new(BTreeSet::new()),
-            innovation: innov,
+            activation: RefCell::new(config.default_activation()),
+            innovation: innov.new_node(),
         }
     }
 
-    pub(crate) fn new_output(innov: u32) -> Self {
+    pub(crate) fn new_output(innov: &Innovation, config: &Config) -> Self {
         Self {
             kind: NodeKind::Output,
             forward: RefCell::new(BTreeSet::new()),
             backward: RefCell::new(BTreeSet::new()),
-            innovation: innov,
+            activation: RefCell::new(config.default_activation()),
+            innovation: innov.new_node(),
         }
     }
 
@@ -80,6 +85,11 @@ impl Node {
     pub(crate) fn any_backward_conns(&self, f: impl FnMut(&Rc<Connection>) -> bool) -> bool {
         self.backward.borrow().iter().any(f)
     }
+
+    pub(crate) fn mutate_activation(&self, rng: &mut impl Rng, config: &Config) {
+        let random_activation = config.activations().choose(rng).cloned().unwrap();
+        self.activation.replace(random_activation);
+    }
 }
 
 impl fmt::Debug for Node {
@@ -102,6 +112,8 @@ impl fmt::Debug for Node {
         output.finish()
     }
 }
+
+impl Eq for Node {}
 
 impl hash::Hash for Node {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
@@ -135,17 +147,10 @@ impl PartialOrd for Node {
     }
 }
 
-/// Specifies the position of a [`Node`] in a genome.
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 enum NodeKind {
-    /// Represents an input node of a genome.
     Input,
-
-    /// Represents a hidden node of a genome.
-    #[default]
-    Hidden,
-
-    /// Represents an output node of a genome.
+    #[default] Hidden,
     Output
 }
 

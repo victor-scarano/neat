@@ -1,6 +1,6 @@
 use crate::Activation;
 use std::{cell::OnceCell, num::NonZero};
-use rand::seq::SliceRandom;
+use rand::{seq::SliceRandom, Rng};
 
 pub struct Config {
     pop_size: usize,
@@ -37,20 +37,20 @@ impl Config {
         }
     }
 
-    fn update_default_activation(&mut self) {
-        let choice = self.activations.choose(&mut rand::thread_rng()).cloned().unwrap();
+    fn update_default_activation(&mut self, rng: &mut impl Rng) {
+        let choice = self.activations.choose(rng).cloned().unwrap();
         let _ = self.default_activation.set(choice);
     }
 
-    pub fn with_activations(mut self, activations: impl IntoIterator<Item = impl Into<Activation>>) -> Self {
+    pub fn with_activations(mut self, rng: &mut impl Rng, activations: impl IntoIterator<Item = impl Into<Activation>>) -> Self {
         self.activations = activations.into_iter().map(|activation| activation.into()).collect();
-        self.update_default_activation();
+        self.update_default_activation(rng);
         self
     }
 
-    pub fn insert_activation(mut self, activation: impl Into<Activation>) -> Self {
+    pub fn insert_activation(mut self, rng: &mut impl Rng, activation: impl Into<Activation>) -> Self {
         self.activations.push(activation.into());
-        self.update_default_activation();
+        self.update_default_activation(rng);
         self
     }
 
@@ -98,8 +98,8 @@ impl Config {
         self.activations.iter()
     }
 
-    pub(crate) fn default_activation(&self) -> &Activation {
-        self.default_activation.get().unwrap()
+    pub(crate) fn default_activation(&self) -> Activation {
+        self.default_activation.get().cloned().unwrap()
     }
 
     pub(crate) fn activation_mutate_rate(&self) -> f32 {
