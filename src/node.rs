@@ -1,28 +1,15 @@
 use crate::Connection;
 use std::{cell::RefCell, cmp::Ordering, collections::BTreeSet, fmt, hash, rc::Rc};
 
-/// A node or neuron within the genome, containing a set of both the forwards and backwards facing connections.
 #[derive(Default, Clone, Eq)]
 pub(crate) struct Node {
-    /// Specifies the position of the node.
     kind: NodeKind,
-
-    /// The set of [`Connection`]s such that this [`Node`] is the input of the connection.
-    ///
-    /// We wrap [`BTreeSet<Rc<Connection>>`] in a [`RefCell`] to provide interior mutability to the set.
     forward: RefCell<BTreeSet<Rc<Connection>>>,
-
-    /// The set of [`Connection`]s such that this [`Node`] is the output of the connection.
-    ///
-    /// We wrap [`BTreeSet<Rc<Connection>>`] in a [`RefCell`] to provide interior mutability to the set.
     backward: RefCell<BTreeSet<Rc<Connection>>>,
-
-    /// The innovation of the node.
     innovation: u32,
 }
 
 impl Node {
-    /// Constructs a new node representing an input node within a genome.
     pub(crate) fn new_input(innov: u32) -> Self {
         Self {
             kind: NodeKind::Input,
@@ -32,7 +19,6 @@ impl Node {
         }
     }
 
-    /// Constructs a new node representing a hidden node within a genome.
     pub(crate) fn new_hidden(innov: u32) -> Self {
         Self {
             kind: NodeKind::Hidden,
@@ -42,7 +28,6 @@ impl Node {
         }
     }
 
-    /// Constructs a new node representing an output node within a genome.
     pub(crate) fn new_output(innov: u32) -> Self {
         Self {
             kind: NodeKind::Output,
@@ -56,51 +41,42 @@ impl Node {
         self.innovation
     }
 
-    /// Returns true if the node represents an input node.
     pub(crate) fn is_input(&self) -> bool {
         self.kind == NodeKind::Input
     }
 
-    /// Returns true if the node represents a hidden node.
     pub(crate) fn is_hidden(&self) -> bool {
         self.kind == NodeKind::Hidden
     }
 
-    /// Returns true if the node represents an output node.
     pub(crate) fn is_output(&self) -> bool {
         self.kind == NodeKind::Output
     }
 
-    /// Inserts a forwards facing connection if the node does not represent an output node.
     pub(crate) fn insert_forward_conn(&self, conn: Rc<Connection>) {
         if self.kind != NodeKind::Output {
             self.forward.borrow_mut().insert(conn);
         }
     }
 
-    /// Inserts a backwards facing connection if the node does not represent an input node.
     pub(crate) fn insert_backward_conn(&self, conn: Rc<Connection>) {
         if self.kind != NodeKind::Input {
             self.backward.borrow_mut().insert(conn);
         }
     }
 
-    /// Returns the number of forward facing connections.
     pub(crate) fn num_forward_conns(&self) -> usize {
         self.forward.borrow().len()
     }
 
-    /// Returns the number of backward facing connections.
     pub(crate) fn num_backward_conns(&self) -> usize {
         self.backward.borrow().len()
     }
 
-    /// Iterates over the node's forward facing connections that are enabled.
     pub(crate) fn iter_enabled_forward_conns(&self) -> impl Iterator<Item = Rc<Connection>> + '_ {
         self.forward.borrow().iter().filter(|conn| conn.enabled()).cloned().collect::<Vec<_>>().into_iter()
     }
 
-    /// Returns true if a connection exists matching the predicate in the node's backward facing connections.
     pub(crate) fn any_backward_conns(&self, f: impl FnMut(&Rc<Connection>) -> bool) -> bool {
         self.backward.borrow().iter().any(f)
     }
