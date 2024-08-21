@@ -9,6 +9,14 @@ impl Default for Activation {
     }
 }
 
+pub struct Identity;
+
+impl Into<Activation> for Identity {
+    fn into(self) -> Activation {
+        Activation(Rc::new(|x| x))
+    }
+}
+
 pub struct Sigmoid;
 
 impl Into<Activation> for Sigmoid {

@@ -1,19 +1,54 @@
 use crate::{activation, Activation};
 use std::{cell::OnceCell, num::NonZero};
 use rand::{seq::SliceRandom, Rng};
+use rand_distr::{Distribution, Normal, Uniform};
+
+pub enum BiasType {
+    Normal,
+    Uniform,
+}
+
+impl BiasType {
+    fn sample(&self, rng: &mut impl Rng, config: &Config) -> f32 {
+        match self {
+            Self::Normal => {
+                Normal::new(config.default_bias_mean, config.default_bias_std_dev).unwrap().sample(rng)
+            },
+            Self::Uniform => {
+                Uniform::new_inclusive(
+                    f32::max(config.bias_min, config.default_bias_mean - (config.default_bias_std_dev * 2.0)),
+                    f32::min(config.bias_max, config.default_bias_mean + (config.default_bias_std_dev * 2.0)),
+                ).sample(rng)
+            }
+        }
+    }
+}
 
 pub struct Config {
     pop_size: usize,
+
     activations: OnceCell<Vec<Activation>>,
     default_activation: OnceCell<Activation>,
     activation_mutate_rate: f32,
+
     // TODO: Aggregation.
-    // TODO: Bias.
+
+    default_bias_mean: f32,
+    default_bias_std_dev: f32,
+    default_bias_type: BiasType,
+    bias_max: f32,
+    bias_min: f32,
+    bias_mutate_power: f32,
+    bias_mutate_rate: f32,
+    bias_replace_rate: f32,
+
     compat_disjoint_coeff: f32,
     compat_weight_coeff: f32,
+
     add_conn_prob: f32,
     remove_conn_prob: f32,
     enabled_default: bool,
+
 	num_inputs: usize,
     num_hidden: usize,
 	num_outputs: usize,
@@ -26,6 +61,14 @@ impl Config {
             activations: OnceCell::new(),
             default_activation: OnceCell::new(),
             activation_mutate_rate: 0.5,
+            default_bias_mean: 0.5,
+            default_bias_std_dev: 0.5,
+            default_bias_type: BiasType::Normal,
+            bias_max: 0.5,
+            bias_min: 0.5,
+            bias_mutate_power: 0.5,
+            bias_mutate_rate: 0.5,
+            bias_replace_rate: 0.5,
             compat_disjoint_coeff: 0.5,
             compat_weight_coeff: 0.5,
             add_conn_prob: 0.5,
@@ -59,6 +102,46 @@ impl Config {
         assert!(value >= 0.0);
         assert!(value <= 1.0);
         self.activation_mutate_rate = value;
+        self
+    }
+
+    pub fn with_default_bias_mean(mut self, value: f32) -> Self {
+        self.default_bias_mean = value;
+        self
+    }
+
+    pub fn with_default_bias_std_dev(mut self, value: f32) -> Self {
+        self.default_bias_std_dev = value;
+        self
+    }
+    
+    pub fn with_default_bias_type(mut self, value: BiasType) -> Self {
+        self.default_bias_type = value;
+        self
+    }
+
+    pub fn with_bias_max(mut self, value: f32) -> Self {
+        self.bias_max = value;
+        self
+    }
+
+    pub fn with_bias_min(mut self, value: f32) -> Self {
+        self.bias_min = value;
+        self
+    }
+
+    pub fn with_bias_mutate_power(mut self, value: f32) -> Self {
+        self.bias_mutate_power = value;
+        self
+    }
+
+    pub fn with_bias_mutate_rate(mut self, value: f32) -> Self {
+        self.bias_mutate_rate = value;
+        self
+    }
+
+    pub fn with_bias_replace_rate(mut self, value: f32) -> Self {
+        self.bias_replace_rate = value;
         self
     }
 
@@ -105,6 +188,10 @@ impl Config {
 
     pub(crate) fn activation_mutate_rate(&self) -> f32 {
         self.activation_mutate_rate
+    }
+
+    pub(crate) fn new_node_bias(&self, rng: &mut impl Rng) -> f32 {
+        self.default_bias_type.sample(rng, self)
     }
 
     pub(crate) fn compat_disjoint_coeff(&self) -> f32 {
