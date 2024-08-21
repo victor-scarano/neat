@@ -1,24 +1,21 @@
-use crate::{Activation, Connection, nodes::{ConnectionInput, ConnectionOutput, Node}};
+use crate::{node::{ConnectionOutput, Node}, Activation, Config, Connection, Innovation};
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
-use rand::Rng;
 
-
-pub(crate) struct Hidden {
-    forward_conns: RefCell<BTreeSet<Rc<Connection>>>,
+#[derive(Debug)]
+pub(crate) struct Output {
     backward_conns: RefCell<BTreeSet<Rc<Connection>>>,
     activation: Activation,
     bias: f32,
     innovation: u32,
 }
 
-impl Node for Hidden {
-    fn new<R: Rng>(rng: &mut R, innovation: &crate::Innovation, config: &crate::Config) -> Self where Self: Sized {
+impl Node for Output {
+    fn new<R: rand::Rng>(rng: &mut R, innovation: &Innovation, config: &Config) -> Self where Self: Sized {
         Self {
-            forward_conns: RefCell::new(BTreeSet::new()),
             backward_conns: RefCell::new(BTreeSet::new()),
             activation: config.default_activation(),
             bias: config.new_node_bias(rng),
-            innovation: innovation.new_node(),
+            innovation: innovation.new_node_innovation(),
         }
     }
 
@@ -35,17 +32,7 @@ impl Node for Hidden {
     }
 }
 
-impl ConnectionInput for Hidden {
-    fn insert_forward_conn(&self, conn: Rc<Connection>) {
-        self.forward_conns.borrow_mut().insert(conn);
-    }
-    
-    fn num_forward_conns(&self) -> usize {
-        self.forward_conns.borrow().len()
-    }
-}
-
-impl ConnectionOutput for Hidden {
+impl ConnectionOutput for Output {
     fn insert_backward_conn(&self, conn: Rc<Connection>) {
         self.backward_conns.borrow_mut().insert(conn);
     }
@@ -53,5 +40,8 @@ impl ConnectionOutput for Hidden {
     fn num_backward_conns(&self) -> usize {
         self.backward_conns.borrow().len()
     }
-}
 
+    fn any_backward_conns<F: FnMut(&Rc<Connection>) -> bool>(&self, f: F) -> bool {
+        self.backward_conns.borrow().iter().any(f)
+    }
+}

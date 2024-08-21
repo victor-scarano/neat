@@ -1,45 +1,40 @@
-use crate::Node;
-use std::{cell::Cell, cmp::Ordering, fmt, hash, rc::Rc};
+use crate::node::{ConnectionInput, ConnectionOutput, Hidden, Input, Node, Output};
+use std::{borrow::Borrow, cell::{Cell, RefCell}, cmp::Ordering, fmt, hash, iter, rc::Rc};
 use rand::Rng;
 
-#[derive(Default)]
 pub(crate) struct Connection {
-	input: Cell<Rc<Node>>,
-	output: Cell<Rc<Node>>,
+	input: RefCell<Rc<dyn ConnectionInput>>,
+	output: RefCell<Rc<dyn ConnectionOutput>>,
 	weight: Cell<f32>,
 	enabled: Cell<bool>,
 	innovation: u32,
 }
 
 impl Connection {
-	pub fn new(input: Rc<Node>, output: Rc<Node>, weight: f32, innov: u32) -> Self {
+	pub fn new(input: Rc<dyn ConnectionInput>, output: Rc<dyn ConnectionOutput>, weight: f32, innov: u32) -> Self {
 		Self {
-			input: Cell::new(input),
-			output: Cell::new(output),
+			input: RefCell::new(input),
+			output: RefCell::new(output),
 			weight: Cell::new(weight),
 			enabled: Cell::new(true),
 			innovation: innov,
 		}
 	}
 
-	pub fn input(&self) -> Rc<Node> {
-		let node = self.input.take();
-		self.input.set(node.clone());
-		node.clone()
+	pub fn input(&self) -> Rc<dyn ConnectionInput> {
+		Rc::clone(&self.input.borrow())
 	}
 
-	pub fn output(&self) -> Rc<Node> {
-		let node = self.output.take();
-		self.output.set(node.clone());
-		node.clone()
+	pub fn output(&self) -> Rc<dyn ConnectionOutput> {
+        Rc::clone(&self.output.borrow())
 	}
 
-	pub fn set_input(&self, f: impl Fn(Rc<Node>) -> Rc<Node>) {
-		self.input.set(f(self.input()));
+	pub fn set_input(&self, f: impl Fn(Rc<dyn ConnectionInput>) -> Rc<dyn ConnectionInput>) {
+		self.input.replace(f(self.input()));
 	}
 
-	pub fn set_output(&self, f: impl Fn(Rc<Node>) -> Rc<Node>) {
-		self.output.set(f(self.output()));
+	pub fn set_output(&self, f: impl Fn(Rc<dyn ConnectionOutput>) -> Rc<dyn ConnectionOutput>) {
+		self.output.replace(f(self.output()));
 	}
 
 	pub fn weight(&self) -> f32 {
@@ -59,24 +54,26 @@ impl Connection {
 	}
 
 	pub fn perturbe_weight(&self, rng: &mut impl Rng) {
-		let weight = self.weight.take();
-		self.weight.set(weight + rng.gen::<f32>());
+		// let weight = self.weight.take();
+		// self.weight.set(weight + rng.gen::<f32>());
+        todo!();
 	}
 
 	pub fn replace_weight(&self, rng: &mut impl Rng) {
-		self.weight.set(rng.gen())
+		// self.weight.set(rng.gen())
+        todo!();
 	}
 
-	pub fn nodes(&self) -> impl Iterator<Item = Rc<Node>> {
-		[self.input(), self.output()].into_iter()
+	pub fn nodes(&self) -> impl Iterator<Item = Rc<dyn Node>> {
+        [self.input() as Rc<dyn Node>, self.output() as Rc<dyn Node>].into_iter()
 	}
 }
 
 impl Clone for Connection {
 	fn clone(&self) -> Self {
 		Self {
-			input: Cell::new(self.input()),
-			output: Cell::new(self.output()),
+			input: RefCell::new(self.input()),
+			output: RefCell::new(self.output()),
 			weight: self.weight.clone(),
 			enabled: self.enabled.clone(),
 			innovation: self.innovation,

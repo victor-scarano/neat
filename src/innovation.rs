@@ -1,4 +1,4 @@
-use crate::Node;
+use crate::node::Node;
 use std::{cell::{Cell, RefCell}, collections::HashMap, rc::Rc};
 
 #[derive(Debug, Default)]
@@ -8,13 +8,13 @@ pub(crate) struct Innovation {
 }
 
 impl Innovation {
-	pub(crate) fn new_conn(&self, input: Rc<Node>, output: Rc<Node>) -> u32 {
+	pub(crate) fn new_conn_innovation(&self, input: Rc<dyn Node>, output: Rc<dyn Node>) -> u32 {
 		let key = (input.innovation(), output.innovation());
 		let len = self.conns.borrow().len() as u32;
 		*self.conns.borrow_mut().entry(key).or_insert(len)
 	}
 
-	pub(crate) fn new_node(&self) -> u32 {
+	pub(crate) fn new_node_innovation(&self) -> u32 {
 		let innov = self.nodes.take();
 		self.nodes.set(innov + 1);
 		innov
