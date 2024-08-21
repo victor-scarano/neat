@@ -2,6 +2,19 @@ use crate::{Activation, Config, Connection, Innovation};
 use std::{cell::RefCell, cmp::Ordering, collections::BTreeSet, fmt, hash, rc::Rc};
 use rand::{seq::IteratorRandom, Rng};
 
+pub(crate) trait Node {
+    
+}
+
+// cannot be the output of a connection
+// have no aggregation function (y=x)
+// a fixed bias of 0
+// a fixed response multiplier of 1
+// and a fixed activation y=x
+pub(crate) struct Input {
+    forward_conns: RefCell<BTreeSet<Rc<Connection>>>,
+}
+
 #[derive(Default, Clone)]
 pub(crate) struct Node {
     kind: NodeKind,
@@ -146,12 +159,5 @@ impl PartialOrd for Node {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
-}
-
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-enum NodeKind {
-    Input,
-    #[default] Hidden,
-    Output
 }
 
