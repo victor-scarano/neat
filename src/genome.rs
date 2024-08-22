@@ -117,8 +117,6 @@ impl Genome {
     }
 
     pub(crate) fn new(rng: &mut impl Rng, innov: &Innovation, config: &Config) -> Self {
-        // TODO: Update to reflect changes to config.
-
         let mut genome = Self {
             conns: BTreeSet::new(),
             input: iter::repeat_with(|| {
@@ -130,34 +128,30 @@ impl Genome {
             }).take(config.num_outputs()).collect(),
             fitness: OnceCell::new(),
         };
-
-        for input in genome.iter_input() {
-            for output in genome.iter_output() {
-                genome.add_conn(input.clone(), output.clone(), rng.gen(), innov);
-            }
-        }
+        
+        // TODO: Update to reflect changes to config.
 
         genome
     }
 
     pub(crate) fn mutate_add_conn(&mut self, rng: &mut impl Rng, innov: &Innovation, config: &Config) {
-        let mut inputs = self.iter_connection_inputs().collect::<Vec<_>>();
-        inputs.shuffle(rng);
+        let mut connection_inputs = self.iter_connection_inputs().collect::<Vec<_>>();
+        connection_inputs.shuffle(rng);
 
-        let mut outputs = self.iter_connection_outputs().collect::<Vec<_>>();
-        outputs.shuffle(rng);
+        let mut connection_outputs = self.iter_connection_outputs().collect::<Vec<_>>();
+        connection_outputs.shuffle(rng);
 
-        let random_input = inputs.into_iter().find(|node| {
+        let random_input = connection_inputs.into_iter().find(|node| {
             // (possible forward conns) - (node's forward conns) > 0 node has at least one valid output node.
-            outputs.len()
-                .saturating_sub(self.hidden.contains(
-                    &(node.clone() as Rc<dyn Any>).downcast().unwrap()
-                ) as usize)
+            connection_outputs.len()
+                .saturating_sub((node.clone() as Rc<dyn Any>).downcast_ref::<Hidden>().is_some_and(|downcasted| {
+                    self.hidden.contains(downcasted)
+                }) as usize)
                 .saturating_sub(node.num_forward_conns()) > 0
         }).unwrap();
 
-        let random_output = outputs.into_iter().find(|node| {
-            !node.any_backward_conns(|conn: Connection| conn.input() == random_input)
+        let random_output = connection_outputs.into_iter().find(|node| {
+            !node.contains_backward_conn_by(&mut |conn| conn.input() == random_input.clone())
         }).unwrap();
 
         self.add_conn(random_input, random_output, rng.gen(), innov);
@@ -170,35 +164,12 @@ impl Genome {
     }
 
     pub(crate) fn mutate_conn_weight(&mut self, rng: &mut impl Rng, config: &Config) {
-        let weight_perturbation_preference = 9.0 / 10.0;
-
-        let random_conn = self.iter_conns().filter(|conn| conn.enabled()).choose(rng).unwrap();
-        match rng.gen_bool(weight_perturbation_preference) {
-            true => random_conn.perturbe_weight(rng),
-            false => random_conn.replace_weight(rng),
-        }
+        todo!();
     }
 
-    /*
     pub(crate) fn activate(&self, inputs: impl AsRef<[f32]>, config: &Config) -> impl AsRef<[f32]> {
         // activation ( bias + ( response * aggregation ( inputs ) ) )
-        let inputs = inputs.as_ref();
-
-        let mut nodes = BTreeMap::from_iter(self.iter_input().enumerate().map(|(i, node)| (node.clone(), inputs[i])));
-
-        while let Some((node, val)) = nodes.pop_last() {
-            // TODO: Apply activation function to `val`.
-
-            for conn in node.iter_enabled_forward_conns() {
-                *nodes.entry(conn.output()).or_default() += val * conn.weight();
-            }
-
-            if nodes.last_entry().unwrap().key().is_output() {
-                break;
-            }
-        }
-
-        (0..config.num_outputs()).map(|i| nodes.get(&self.output[i]).cloned().unwrap()).collect::<Vec<_>>()
+        []
     }
 
     pub(crate) fn set_fitness(&mut self, fitness: f32, config: &Config) {
@@ -312,7 +283,6 @@ impl Genome {
             fitness: OnceCell::new(),
         }
     }
-    */
 }
 
 impl fmt::Debug for Genome {

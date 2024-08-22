@@ -41,7 +41,7 @@ impl ConnectionOutput for Output {
         self.backward_conns.borrow().len()
     }
 
-    fn any_backward_conns<F: FnMut(&Rc<Connection>) -> bool>(&self, f: F) -> bool {
-        self.backward_conns.borrow().iter().any(f)
+    fn contains_backward_conn_by(&self, f: &mut dyn FnMut(Rc<Connection>) -> bool) -> bool where Self: Sized {
+        true
     }
 }

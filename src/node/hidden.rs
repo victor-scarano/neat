@@ -1,5 +1,5 @@
 use crate::{Activation, Connection, node::{ConnectionInput, ConnectionOutput, Node}};
-use std::{cell::RefCell, collections::BTreeSet, hash, rc::Rc};
+use std::{any::Any, cell::RefCell, collections::BTreeSet, hash, rc::Rc};
 use rand::Rng;
 
 #[derive(Debug)]
@@ -36,6 +36,16 @@ impl Node for Hidden {
 }
 
 impl ConnectionInput for Hidden {
+    fn iter_forward_conns(&self) -> Box<dyn Iterator<Item = Rc<Connection>>> {
+        Box::new(self.forward_conns.borrow().iter().cloned().collect::<Vec<_>>().into_iter())
+    }
+
+    fn iter_enabled_forward_conns(&self) -> Box<dyn Iterator<Item = Rc<Connection>>> {
+        Box::new(self.forward_conns.borrow().iter().filter(|connection| {
+            connection.enabled()
+        }).cloned().collect::<Vec<_>>().into_iter())
+    }
+
     fn insert_forward_conn(&self, conn: Rc<Connection>) {
         self.forward_conns.borrow_mut().insert(conn);
     }
@@ -54,8 +64,8 @@ impl ConnectionOutput for Hidden {
         self.backward_conns.borrow().len()
     }
 
-    fn any_backward_conns<F: FnMut(&Rc<Connection>) -> bool>(&self, f: F) -> bool {
-        self.backward_conns.borrow().iter().any(f)
+    fn contains_backward_conn_by(&self, f: &mut dyn FnMut(Rc<Connection>) -> bool) -> bool where Self: Sized {
+        true
     }
 }
 

@@ -1,4 +1,4 @@
-#![feature(trait_upcasting)]
+#![feature(result_flattening, trait_upcasting)]
 #![warn(clippy::all)]
 #![allow(dead_code, clippy::from_over_into, clippy::mutable_key_type, unused_imports, unused_mut, unused_variables)]
 
