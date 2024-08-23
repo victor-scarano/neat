@@ -2,6 +2,8 @@ use crate::{activation, Activation};
 use std::{cell::OnceCell, num::NonZero};
 use rand::{seq::SliceRandom, Rng};
 use rand_distr::{Distribution, Normal, Uniform};
+#[cfg(feature = "rayon")]
+use rayon::prelude::*;
 
 pub enum BiasType {
     Normal,
@@ -106,9 +108,12 @@ impl Config {
         let _ = self.default_activation.set(choice);
     }
 
-    pub fn with_activations(mut self, rng: &mut impl Rng, activations: impl IntoIterator<Item = impl Into<Activation>>) -> Self {
+    pub fn with_activations(
+        mut self,
+        rng: &mut impl Rng,
+        activations: impl IntoIterator<Item = impl Into<Activation>>
+    ) -> Self {
         let _ = self.activations.set(activations.into_iter().map(|activation| activation.into()).collect());
-        self.update_default_activation(rng);
         self
     }
 

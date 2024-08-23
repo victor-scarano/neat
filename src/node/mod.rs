@@ -1,5 +1,5 @@
 use crate::{Activation, Config, Conn, Innov};
-use std::{any::Any, cmp::Ordering, hash, rc::Rc};
+use std::{any::Any, cmp::Ordering, hash, sync::Arc, fmt};
 use rand::Rng;
 
 mod input;
@@ -10,7 +10,7 @@ pub(crate) use input::Input;
 pub(crate) use hidden::Hidden;
 pub(crate) use output::Output;
 
-pub(crate) trait Node: Any {
+pub(crate) trait Node: Any + fmt::Debug + Send + Sync {
     fn new<R: Rng>(rng: &mut R, innovation: &Innov, config: &Config) -> Self where Self: Sized;
     fn bias(&self) -> f32;
     fn activation(&self) -> Activation;
@@ -18,17 +18,17 @@ pub(crate) trait Node: Any {
 }
 
 pub(crate) trait ConnInput: Node {
-    fn iter_forward_conns(&self) -> Box<dyn Iterator<Item = Rc<Conn>>>;
-    fn iter_enabled_forward_conns(&self) -> Box<dyn Iterator<Item = Rc<Conn>>>;
-    fn insert_forward_conn(&self, conn: Rc<Conn>);
+    fn iter_forward_conns(&self) -> Box<dyn Iterator<Item = Arc<Conn>>>;
+    fn iter_enabled_forward_conns(&self) -> Box<dyn Iterator<Item = Arc<Conn>>>;
+    fn insert_forward_conn(&self, conn: Arc<Conn>);
     fn num_forward_conns(&self) -> usize;
 }
 
 pub(crate) trait ConnOutput: Node {
-    fn iter_backward_conns(&self) -> Box<dyn Iterator<Item = Rc<Conn>>>;
-    fn insert_backward_conn(&self, conn: Rc<Conn>);
+    fn iter_backward_conns(&self) -> Box<dyn Iterator<Item = Arc<Conn>>>;
+    fn insert_backward_conn(&self, conn: Arc<Conn>);
     fn num_backward_conns(&self) -> usize;
-    fn contains_backward_conn_by(&self, f: &mut dyn FnMut(Rc<Conn>) -> bool) -> bool;
+    fn contains_backward_conn_by(&self, f: &mut dyn FnMut(Arc<Conn>) -> bool) -> bool;
 }
 
 impl Eq for dyn Node {}
@@ -56,7 +56,7 @@ impl PartialEq for dyn ConnInput {
     fn eq(&self, other: &dyn ConnInput) -> bool {
         self.type_id() == other.type_id() &&
         self.num_forward_conns() == other.num_forward_conns() &&
-        self.iter_forward_conns().zip(other.iter_forward_conns()).all(|(a, b)| Rc::ptr_eq(&a, &b))
+        self.iter_forward_conns().zip(other.iter_forward_conns()).all(|(a, b)| Arc::ptr_eq(&a, &b))
     }
 }
 
@@ -64,7 +64,7 @@ impl PartialEq for dyn ConnOutput {
     fn eq(&self, other: &dyn ConnOutput) -> bool {
         self.type_id() == other.type_id() &&
         self.num_backward_conns() == other.num_backward_conns() &&
-        self.iter_backward_conns().zip(other.iter_backward_conns()).all(|(a, b)| Rc::ptr_eq(&a, &b))
+        self.iter_backward_conns().zip(other.iter_backward_conns()).all(|(a, b)| Arc::ptr_eq(&a, &b))
     }
 }
 

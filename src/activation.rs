@@ -1,8 +1,7 @@
-use core::fmt;
-use std::{any::Any, f32::consts::E, hash, rc::Rc};
+use std::{any::Any, fmt, f32::consts::E, hash, sync::Arc};
 
 #[derive(Clone)]
-pub struct Activation(Rc<dyn Fn(f32) -> f32>);
+pub struct Activation(Arc<(dyn Fn(f32) -> f32 + Send + Sync + 'static)>);
 
 impl fmt::Debug for Activation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -34,7 +33,7 @@ pub struct Identity;
 
 impl Into<Activation> for Identity {
     fn into(self) -> Activation {
-        Activation(Rc::new(|x| x))
+        Activation(Arc::new(|x| x))
     }
 }
 
@@ -42,7 +41,7 @@ pub struct Sigmoid;
 
 impl Into<Activation> for Sigmoid {
     fn into(self) -> Activation {
-        Activation(Rc::new(|x| 1.0 / (1.0 + E.powf(-x))))
+        Activation(Arc::new(|x| 1.0 / (1.0 + E.powf(-x))))
     }
 }
 
