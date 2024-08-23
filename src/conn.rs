@@ -1,17 +1,17 @@
-use crate::node::{ConnectionInput, ConnectionOutput, Hidden, Input, Node, Output};
+use crate::node::{ConnInput, ConnOutput, Hidden, Input, Node, Output};
 use std::{borrow::Borrow, cell::{Cell, RefCell}, cmp::Ordering, fmt, hash, iter, rc::Rc};
 use rand::Rng;
 
-pub(crate) struct Connection {
-	input: RefCell<Rc<dyn ConnectionInput>>,
-	output: RefCell<Rc<dyn ConnectionOutput>>,
+pub(crate) struct Conn {
+	input: RefCell<Rc<dyn ConnInput>>,
+	output: RefCell<Rc<dyn ConnOutput>>,
 	weight: Cell<f32>,
 	enabled: Cell<bool>,
 	innovation: u32,
 }
 
-impl Connection {
-	pub fn new(input: Rc<dyn ConnectionInput>, output: Rc<dyn ConnectionOutput>, weight: f32, innov: u32) -> Self {
+impl Conn {
+	pub fn new(input: Rc<dyn ConnInput>, output: Rc<dyn ConnOutput>, weight: f32, innov: u32) -> Self {
 		Self {
 			input: RefCell::new(input),
 			output: RefCell::new(output),
@@ -21,19 +21,19 @@ impl Connection {
 		}
 	}
 
-	pub fn input(&self) -> Rc<dyn ConnectionInput> {
+	pub fn input(&self) -> Rc<dyn ConnInput> {
 		Rc::clone(&self.input.borrow())
 	}
 
-	pub fn output(&self) -> Rc<dyn ConnectionOutput> {
+	pub fn output(&self) -> Rc<dyn ConnOutput> {
         Rc::clone(&self.output.borrow())
 	}
 
-	pub fn set_input(&self, f: impl Fn(Rc<dyn ConnectionInput>) -> Rc<dyn ConnectionInput>) {
+	pub fn set_input(&self, f: impl Fn(Rc<dyn ConnInput>) -> Rc<dyn ConnInput>) {
 		self.input.replace(f(self.input()));
 	}
 
-	pub fn set_output(&self, f: impl Fn(Rc<dyn ConnectionOutput>) -> Rc<dyn ConnectionOutput>) {
+	pub fn set_output(&self, f: impl Fn(Rc<dyn ConnOutput>) -> Rc<dyn ConnOutput>) {
 		self.output.replace(f(self.output()));
 	}
 
@@ -69,7 +69,7 @@ impl Connection {
 	}
 }
 
-impl Clone for Connection {
+impl Clone for Conn {
 	fn clone(&self) -> Self {
 		Self {
 			input: RefCell::new(self.input()),
@@ -81,9 +81,9 @@ impl Clone for Connection {
 	}
 }
 
-impl Eq for Connection {}
+impl Eq for Conn {}
 
-impl fmt::Debug for Connection {
+impl fmt::Debug for Conn {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Conn")
 			.field("addr", &format_args!("{:?}", self as *const Self))
@@ -96,26 +96,26 @@ impl fmt::Debug for Connection {
 	}
 }
 
-impl hash::Hash for Connection {
+impl hash::Hash for Conn {
 	fn hash<H: hash::Hasher>(&self, state: &mut H) {
 		Rc::as_ptr(&self.input()).hash(state);
 		Rc::as_ptr(&self.output()).hash(state);
 	}
 }
 
-impl Ord for Connection {
+impl Ord for Conn {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.innovation.cmp(&other.innovation)
 	}
 }
 
-impl PartialEq for Connection {
+impl PartialEq for Conn {
 	fn eq(&self, other: &Self) -> bool {
 		Rc::ptr_eq(&self.input(), &other.input()) && Rc::ptr_eq(&self.output(), &other.output())
 	}
 }
 
-impl PartialOrd for Connection {
+impl PartialOrd for Conn {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
 	}

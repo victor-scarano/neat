@@ -24,8 +24,23 @@ impl BiasType {
     }
 }
 
+#[derive(Clone)]
+pub enum InitGenome {
+    Unconnected,
+    FsNeatNoHidden,
+    FsNeatHidden,
+    FullNoDirect,
+    FullDirect,
+    PartialNoDirect(f32),
+    PartialDirect(f32),
+}
+
 pub struct Config {
+    fitness_criterion: (),
+    fitness_threshold: f32,
+
     pop_size: usize,
+    reset_on_extinction: bool,
 
     activations: OnceCell<Vec<Activation>>,
     default_activation: OnceCell<Activation>,
@@ -49,6 +64,8 @@ pub struct Config {
     remove_conn_prob: f32,
     enabled_default: bool,
 
+    init_genome: InitGenome,
+
 	num_inputs: usize,
     num_hidden: usize,
 	num_outputs: usize,
@@ -57,7 +74,10 @@ pub struct Config {
 impl Config {
     pub fn new(pop_size: NonZero<usize>, num_inputs: NonZero<usize>, num_outputs: NonZero<usize>) -> Self {
         Self {
+            fitness_criterion: (),
+            fitness_threshold: 0.5,
             pop_size: pop_size.get(),
+            reset_on_extinction: true,
             activations: OnceCell::new(),
             default_activation: OnceCell::new(),
             activation_mutate_rate: 0.5,
@@ -74,6 +94,7 @@ impl Config {
             add_conn_prob: 0.5,
             remove_conn_prob: 0.5,
             enabled_default: true,
+            init_genome: InitGenome::Unconnected,
             num_inputs: num_inputs.get(),
             num_hidden: 0,
             num_outputs: num_outputs.get(),
@@ -174,6 +195,11 @@ impl Config {
         self
     }
 
+    pub fn with_init_genome(mut self, value: InitGenome) -> Self {
+        self.init_genome = value;
+        self
+    }
+
     pub(crate) fn pop_size(&self) -> usize {
         self.pop_size
     }
@@ -183,7 +209,7 @@ impl Config {
     }
 
     pub(crate) fn default_activation(&self) -> Activation {
-        self.default_activation.get().cloned().unwrap()
+        self.default_activation.get_or_init(|| activation::Sigmoid.into()).clone()
     }
 
     pub(crate) fn activation_mutate_rate(&self) -> f32 {
@@ -212,6 +238,10 @@ impl Config {
 
     pub(crate) fn enabled_default(&self) -> bool {
         self.enabled_default
+    }
+
+    pub(crate) fn init_genome(&self) -> InitGenome {
+        self.init_genome.clone()
     }
 
     pub(crate) fn num_inputs(&self) -> usize {

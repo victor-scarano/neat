@@ -1,10 +1,10 @@
-use crate::{node::{ConnectionInput, ConnectionOutput, Hidden, Input, Node, Output}, Config, Connection, Innovation};
+use crate::{node::{ConnInput, ConnOutput, Hidden, Input, Node, Output}, config::{Config, InitGenome}, Conn, Innov};
 use rand::{seq::{IteratorRandom, SliceRandom}, Rng};
 use std::{any::Any, cell::{OnceCell, RefCell}, collections::{BTreeMap, BTreeSet, HashMap, HashSet}, fmt, iter, rc::Rc};
 
 #[derive(Clone)]
 pub struct Genome {
-    conns: BTreeSet<Rc<Connection>>,
+    conns: BTreeSet<Rc<Conn>>,
     input: Box<[Rc<Input>]>,
     hidden: HashSet<Rc<Hidden>>,
     output: Box<[Rc<Output>]>,
@@ -12,7 +12,7 @@ pub struct Genome {
 }
 
 impl Genome {
-    pub(crate) fn insert_conn(&mut self, conn: Connection) -> Rc<Connection> {
+    pub(crate) fn insert_conn(&mut self, conn: Conn) -> Rc<Conn> {
         let conn = Rc::new(conn);
         self.conns.insert(conn.clone());
         conn.clone()
@@ -26,12 +26,12 @@ impl Genome {
 
     pub(crate) fn add_conn(
         &mut self,
-        input: Rc<dyn ConnectionInput>,
-        output: Rc<dyn ConnectionOutput>,
+        input: Rc<dyn ConnInput>,
+        output: Rc<dyn ConnOutput>,
         weight: f32,
-        innov: &Innovation
-    ) -> Rc<Connection> {
-        let new_conn = self.insert_conn(Connection::new(
+        innov: &Innov
+    ) -> Rc<Conn> {
+        let new_conn = self.insert_conn(Conn::new(
             input.clone(),
             output.clone(),
             weight,
@@ -46,23 +46,23 @@ impl Genome {
 
     pub(crate) fn split_conn(
         &mut self,
-        old_conn: Rc<Connection>,
+        old_conn: Rc<Conn>,
         rng: &mut impl Rng,
-        innov: &Innovation,
+        innov: &Innov,
         config: &Config,
-    ) -> (Rc<Connection>, Rc<Connection>) {
+    ) -> (Rc<Conn>, Rc<Conn>) {
         old_conn.disable();
 
         let new_node = self.insert_node(Hidden::new(rng, innov, config));
 
-        let conn_a = self.insert_conn(Connection::new(
+        let conn_a = self.insert_conn(Conn::new(
             old_conn.input(),
             new_node.clone(),
             1.0,
             innov.new_conn_innovation(old_conn.input(), new_node.clone())
         ));
 
-        let conn_b = self.insert_conn(Connection::new(
+        let conn_b = self.insert_conn(Conn::new(
             new_node.clone(),
             old_conn.output(),
             old_conn.weight(),
@@ -82,7 +82,7 @@ impl Genome {
         fitness.cloned().unwrap()
     }
 
-    pub(crate) fn iter_conns(&self) -> impl Iterator<Item = Rc<Connection>> {
+    pub(crate) fn iter_conns(&self) -> impl Iterator<Item = Rc<Conn>> {
         self.conns.iter().cloned().collect::<Vec<_>>().into_iter()
     }
 
@@ -100,67 +100,82 @@ impl Genome {
         self.output.iter().cloned().collect::<Vec<_>>().into_iter()
     }
 
-    pub(crate) fn iter_connection_inputs(&self) -> impl Iterator<Item = Rc<dyn ConnectionInput>> {
+    pub(crate) fn iter_conn_inputs(&self) -> impl Iterator<Item = Rc<dyn ConnInput>> {
         self.iter_input().map(|input| {
-            input as Rc<dyn ConnectionInput>
+            input as Rc<dyn ConnInput>
         }).chain(self.iter_hidden().map(|hidden| {
-            hidden as Rc<dyn ConnectionInput>
+            hidden as Rc<dyn ConnInput>
         }))
     }
 
-    pub(crate) fn iter_connection_outputs(&self) -> impl Iterator<Item = Rc<dyn ConnectionOutput>> {
+    pub(crate) fn iter_conn_outputs(&self) -> impl Iterator<Item = Rc<dyn ConnOutput>> {
         self.iter_hidden().map(|hidden| {
-            hidden as Rc<dyn ConnectionOutput>
+            hidden as Rc<dyn ConnOutput>
         }).chain(self.iter_output().map(|output| {
-            output as Rc<dyn ConnectionOutput>
+            output as Rc<dyn ConnOutput>
         }))
     }
 
-    pub(crate) fn new(rng: &mut impl Rng, innov: &Innovation, config: &Config) -> Self {
+    pub(crate) fn new(rng: &mut impl Rng, innov: &Innov, config: &Config) -> Self {
         let mut genome = Self {
             conns: BTreeSet::new(),
-            input: iter::repeat_with(|| {
-                Rc::new(Input::new(rng, innov, config))
-            }).take(config.num_inputs()).collect(),
+            input: (0..config.num_inputs()).map(|_| Rc::new(Input::new(rng, innov, config))).collect(),
             hidden: HashSet::new(),
-            output: iter::repeat_with(|| {
-                Rc::new(Output::new(rng, innov, config))
-            }).take(config.num_outputs()).collect(),
+            output: (0..config.num_outputs()).map(|_| Rc::new(Output::new(rng, innov, config))).collect(),
             fitness: OnceCell::new(),
         };
-        
-        // TODO: Update to reflect changes to config.
+
+        match config.init_genome() {
+            InitGenome::Unconnected => (), // Make no further changes.
+            InitGenome::FsNeatNoHidden => {
+                let rand_input = genome.iter_input().choose(rng).unwrap();
+
+                for output in genome.iter_output() {
+                    genome.insert_conn(Conn::new(
+                        rand_input.clone(),
+                        output.clone(),
+                        f32::MAX,
+                        innov.new_conn_innovation(rand_input.clone(), output.clone()),
+                    ));
+                }
+            },
+            InitGenome::FsNeatHidden => todo!(),
+            InitGenome::FullNoDirect => todo!(),
+            InitGenome::FullDirect => todo!(),
+            InitGenome::PartialNoDirect(prob) => todo!(),
+            InitGenome::PartialDirect(prob) => todo!()
+        }
 
         genome
     }
 
-    pub(crate) fn mutate_add_conn(&mut self, rng: &mut impl Rng, innov: &Innovation, config: &Config) {
-        let mut connection_inputs = self.iter_connection_inputs().collect::<Vec<_>>();
-        connection_inputs.shuffle(rng);
+    pub(crate) fn mutate_add_conn(&mut self, rng: &mut impl Rng, innov: &Innov, config: &Config) {
+        let mut conn_inputs = self.iter_conn_inputs().collect::<Vec<_>>();
+        conn_inputs.shuffle(rng);
 
-        let mut connection_outputs = self.iter_connection_outputs().collect::<Vec<_>>();
-        connection_outputs.shuffle(rng);
+        let mut conn_outputs = self.iter_conn_outputs().collect::<Vec<_>>();
+        conn_outputs.shuffle(rng);
 
-        let random_input = connection_inputs.into_iter().find(|node| {
+        let rand_input = conn_inputs.into_iter().find(|node| {
             // (possible forward conns) - (node's forward conns) > 0 node has at least one valid output node.
-            connection_outputs.len()
+            conn_outputs.len()
                 .saturating_sub((node.clone() as Rc<dyn Any>).downcast_ref::<Hidden>().is_some_and(|downcasted| {
                     self.hidden.contains(downcasted)
                 }) as usize)
                 .saturating_sub(node.num_forward_conns()) > 0
         }).unwrap();
 
-        let random_output = connection_outputs.into_iter().find(|node| {
-            !node.contains_backward_conn_by(&mut |conn| conn.input() == random_input.clone())
+        let random_output = conn_outputs.into_iter().find(|node| {
+            !node.contains_backward_conn_by(&mut |conn| conn.input() == rand_input.clone())
         }).unwrap();
 
-        self.add_conn(random_input, random_output, rng.gen(), innov);
+        self.add_conn(rand_input, random_output, rng.gen(), innov);
     }
 
-    pub(crate) fn mutate_split_conn(&mut self, rng: &mut impl Rng, innov: &Innovation, config: &Config) {
+    pub(crate) fn mutate_split_conn(&mut self, rng: &mut impl Rng, innov: &Innov, config: &Config) {
         assert_ne!(self.conns.len(), 0);
-        let random_conn = self.iter_conns().filter(|conn| conn.enabled()).choose(rng).unwrap();
-        self.split_conn(random_conn, rng, innov, config);
+        let rand_conn = self.iter_conns().filter(|conn| conn.enabled()).choose(rng).unwrap();
+        self.split_conn(rand_conn, rng, innov, config);
     }
 
     pub(crate) fn mutate_conn_weight(&mut self, rng: &mut impl Rng, config: &Config) {
@@ -169,6 +184,7 @@ impl Genome {
 
     pub(crate) fn activate(&self, inputs: impl AsRef<[f32]>, config: &Config) -> impl AsRef<[f32]> {
         // activation ( bias + ( response * aggregation ( inputs ) ) )
+
         []
     }
 
@@ -181,107 +197,7 @@ impl Genome {
     }
 
     pub(crate) fn crossover(lhs: Self, rhs: Self, rng: &mut impl Rng, config: &Config) -> Self {
-        // TODO: Update node rcs to point to new conns.
-        // TODO: Make map from old to new conns to update easily.
-
-        // TODO: Move these to a configuration structure.
-        let matching_pref: f64 = 2.0 / 3.0;
-        let disable_chance: f64 = 1.0 / 3.0;
-
-        let rng = RefCell::new(rng);
-
-        let ordered = {
-            let mut pair = [&lhs, &rhs];
-            pair.sort_by(|a, b| a.fitness().total_cmp(&b.fitness()));
-            (pair[0], pair[1])
-        };
-
-        // Creates an iterator of the the parents' matching genes that will be used in the child's genome.
-        let matching: Box<dyn Iterator<Item = Rc<Connection>>> = {
-            if lhs.fitness() == rhs.fitness() {
-                Box::new(lhs.conns.intersection(&rhs.conns).map(|key| {
-                    let random = rng.borrow_mut().gen();
-
-                    let parent = match random {
-                        false => &lhs,
-                        true => &rhs,
-                    };
-
-                    parent.conns.get(key).cloned().unwrap()
-                }))
-            } else {
-                Box::new(lhs.conns.intersection(&rhs.conns).map(|key| {
-                    let random = rng.borrow_mut().gen_bool(matching_pref);
-
-                    let parent = match random {
-                        false => ordered.0,
-                        true => ordered.1,
-                    };
-
-                    parent.conns.get(key).cloned().unwrap()
-                }))
-            }
-        };
-
-        // Creates an iterator of the parents' disjoint genes that will be used in the child's genome.
-        let disjoint: Box<dyn Iterator<Item = Rc<Connection>>> = {
-            if lhs.fitness() == rhs.fitness() {
-                Box::new(lhs.conns.symmetric_difference(&rhs.conns).filter_map(|conn| {
-                    let random = rng.borrow_mut().gen::<bool>();
-                    random.then_some(conn).cloned()
-                }))
-            } else {
-                Box::new(ordered.1.conns.difference(&ordered.0.conns).cloned())
-            }
-        };
-
-        // We need to clone the parents' conns because if the parents have multiple offspring, all of the offspring
-        // will be sharing the same conns, which could lead to conflicting mutations.
-        let new_conns: Vec<_> = matching.chain(disjoint).map(|conn| {
-            Rc::new(Connection::clone(&conn))
-        }).collect();
-
-        let parents_nodes = HashSet::<_>::from_iter(new_conns.iter().flat_map(|conn| conn.nodes()));
-
-        let parents_inputs = HashSet::<_>::from_iter(lhs.iter_input().chain(rhs.iter_input()));
-        let input_intersection = parents_inputs.intersection(&parents_nodes);
-        let input_map = HashMap::<_, _>::from_iter(input_intersection.map(|node| {
-            (node.clone(), Rc::new(Node::clone(node)))
-        }));
-
-        let parents_outputs = HashSet::<_>::from_iter(lhs.iter_output().chain(rhs.iter_output()));
-        let output_intersection = parents_outputs.intersection(&parents_nodes);
-        let output_map = HashMap::<_, _>::from_iter(output_intersection.map(|node| {
-            (node.clone(), Rc::new(Node::clone(node)))
-        }));
-
-        let parents_hidden = HashSet::<_>::from_iter(lhs.iter_hidden().chain(rhs.iter_hidden()));
-        let hidden_intersection = parents_hidden.intersection(&parents_nodes);
-        let hidden_map = HashMap::<_, _>::from_iter(hidden_intersection.map(|node| {
-            (node.clone(), Rc::new(Node::clone(node)))
-        }));
-
-        let mut new_nodes = HashMap::<_, _>::new();
-        new_nodes.extend(input_map.clone());
-        new_nodes.extend(output_map.clone());
-        new_nodes.extend(hidden_map.clone());
-
-        for conn in new_conns.iter() {
-            conn.set_input(|node| new_nodes.get(&node).cloned().unwrap().clone());
-            conn.set_output(|node| new_nodes.get(&node).cloned().unwrap().clone());
-        }
-
-        Self {
-            conns: BTreeSet::from_iter(new_conns),
-            input: lhs.iter_input().zip(rhs.iter_input()).map(|(a, b)| {
-                input_map.get(&a).or(input_map.get(&b)).cloned().unwrap()
-            }).collect(),
-            hidden: HashSet::from_iter(hidden_map.values().cloned()),
-            output: lhs.iter_output().zip(rhs.iter_output()).map(|(a, b)| {
-                output_map.get(&a).or(output_map.get(&b)).cloned().unwrap()
-            }).collect(),
-            fitness: OnceCell::new(),
-        }
+        todo!();
     }
 }
 

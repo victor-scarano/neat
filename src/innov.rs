@@ -2,12 +2,12 @@ use crate::node::Node;
 use std::{cell::{Cell, RefCell}, collections::HashMap, rc::Rc};
 
 #[derive(Debug, Default)]
-pub(crate) struct Innovation {
+pub(crate) struct Innov {
 	conns: RefCell<HashMap<(u32, u32), u32>>,
 	nodes: Cell<u32>,
 }
 
-impl Innovation {
+impl Innov {
 	pub(crate) fn new_conn_innovation(&self, input: Rc<dyn Node>, output: Rc<dyn Node>) -> u32 {
 		let key = (input.innovation(), output.innovation());
 		let len = self.conns.borrow().len() as u32;

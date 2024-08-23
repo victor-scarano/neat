@@ -1,18 +1,18 @@
-use crate::{Activation, Connection, node::{ConnectionInput, ConnectionOutput, Node}};
+use crate::{Activation, Conn, node::{ConnInput, ConnOutput, Node}};
 use std::{any::Any, cell::RefCell, collections::BTreeSet, hash, rc::Rc};
 use rand::Rng;
 
 #[derive(Debug)]
 pub(crate) struct Hidden {
-    forward_conns: RefCell<BTreeSet<Rc<Connection>>>,
-    backward_conns: RefCell<BTreeSet<Rc<Connection>>>,
+    forward_conns: RefCell<BTreeSet<Rc<Conn>>>,
+    backward_conns: RefCell<BTreeSet<Rc<Conn>>>,
     activation: Activation,
     bias: f32,
     innovation: u32,
 }
 
 impl Node for Hidden {
-    fn new<R: Rng>(rng: &mut R, innovation: &crate::Innovation, config: &crate::Config) -> Self where Self: Sized {
+    fn new<R: Rng>(rng: &mut R, innovation: &crate::Innov, config: &crate::Config) -> Self where Self: Sized {
         Self {
             forward_conns: RefCell::new(BTreeSet::new()),
             backward_conns: RefCell::new(BTreeSet::new()),
@@ -35,18 +35,18 @@ impl Node for Hidden {
     }
 }
 
-impl ConnectionInput for Hidden {
-    fn iter_forward_conns(&self) -> Box<dyn Iterator<Item = Rc<Connection>>> {
+impl ConnInput for Hidden {
+    fn iter_forward_conns(&self) -> Box<dyn Iterator<Item = Rc<Conn>>> {
         Box::new(self.forward_conns.borrow().iter().cloned().collect::<Vec<_>>().into_iter())
     }
 
-    fn iter_enabled_forward_conns(&self) -> Box<dyn Iterator<Item = Rc<Connection>>> {
+    fn iter_enabled_forward_conns(&self) -> Box<dyn Iterator<Item = Rc<Conn>>> {
         Box::new(self.forward_conns.borrow().iter().filter(|connection| {
             connection.enabled()
         }).cloned().collect::<Vec<_>>().into_iter())
     }
 
-    fn insert_forward_conn(&self, conn: Rc<Connection>) {
+    fn insert_forward_conn(&self, conn: Rc<Conn>) {
         self.forward_conns.borrow_mut().insert(conn);
     }
     
@@ -55,8 +55,12 @@ impl ConnectionInput for Hidden {
     }
 }
 
-impl ConnectionOutput for Hidden {
-    fn insert_backward_conn(&self, conn: Rc<Connection>) {
+impl ConnOutput for Hidden {
+    fn iter_backward_conns(&self) -> Box<dyn Iterator<Item = Rc<Conn>>> {
+        Box::new(self.backward_conns.borrow().iter().cloned().collect::<Vec<_>>().into_iter())
+    }
+
+    fn insert_backward_conn(&self, conn: Rc<Conn>) {
         self.backward_conns.borrow_mut().insert(conn);
     }
 
@@ -64,7 +68,7 @@ impl ConnectionOutput for Hidden {
         self.backward_conns.borrow().len()
     }
 
-    fn contains_backward_conn_by(&self, f: &mut dyn FnMut(Rc<Connection>) -> bool) -> bool where Self: Sized {
+    fn contains_backward_conn_by(&self, f: &mut dyn FnMut(Rc<Conn>) -> bool) -> bool where Self: Sized {
         true
     }
 }
@@ -73,17 +77,17 @@ impl Eq for Hidden {}
 
 impl hash::Hash for Hidden {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.activation().hash(state);
         self.forward_conns.borrow().iter().for_each(|node| Rc::as_ptr(node).hash(state));
         self.backward_conns.borrow().iter().for_each(|node| Rc::as_ptr(node).hash(state));
-        self.activation().hash(state);
     }
 }
 
 impl PartialEq for Hidden {
     fn eq(&self, other: &Self) -> bool {
+        self.activation() == other.activation() &&
         self.forward_conns == other.forward_conns &&
-        self.backward_conns == other.backward_conns &&
-        self.activation() == other.activation()
+        self.backward_conns == other.backward_conns
     }
 }
 
