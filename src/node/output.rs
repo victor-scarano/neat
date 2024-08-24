@@ -10,7 +10,7 @@ pub(crate) struct Output {
 }
 
 impl Node for Output {
-    fn new<R: rand::Rng>(rng: &mut R, innovation: &Innov, config: &Config) -> Self where Self: Sized {
+    fn new<R: rand::Rng>(rng: &mut R, innovation: Arc<Innov>, config: Arc<Config>) -> Self where Self: Sized {
         Self {
             backward_conns: RwLock::new(BTreeSet::new()),
             activation: config.default_activation(),

@@ -11,7 +11,7 @@ pub(crate) use hidden::Hidden;
 pub(crate) use output::Output;
 
 pub(crate) trait Node: Any + fmt::Debug + Send + Sync {
-    fn new<R: Rng>(rng: &mut R, innovation: &Innov, config: &Config) -> Self where Self: Sized;
+    fn new<R: Rng>(rng: &mut R, innov: Arc<Innov>, config: Arc<Config>) -> Self where Self: Sized;
     fn bias(&self) -> f32;
     fn activation(&self) -> Activation;
     fn innovation(&self) -> u32;

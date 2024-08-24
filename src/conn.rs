@@ -1,25 +1,21 @@
 use crate::{Innov, Config, node::{ConnInput, ConnOutput, Hidden, Input, Node, Output}};
-use std::{borrow::Borrow, cmp::Ordering, fmt, hash, iter, sync::{Arc, OnceLock, RwLock}};
+use std::{cmp::Ordering, fmt, hash, iter, sync::{Arc, RwLock}};
 use rand::Rng;
 
 pub(crate) struct Conn {
 	input: RwLock<Arc<dyn ConnInput>>,
 	output: RwLock<Arc<dyn ConnOutput>>,
-	weight: OnceLock<f32>,
+	weight: RwLock<f32>,
 	enabled: RwLock<bool>,
 	innov: u32,
 }
 
 impl Conn {
-	pub fn new(input: Arc<dyn ConnInput>, output: Arc<dyn ConnOutput>, innov: &Innov, config: &Config) -> Self {
+	pub fn new(input: Arc<dyn ConnInput>, output: Arc<dyn ConnOutput>, innov: Arc<Innov>, config: Arc<Config>) -> Self {
 		Self {
 			input: RwLock::new(input.clone()),
 			output: RwLock::new(output.clone()),
-			weight: {
-                let once_lock = OnceLock::new();
-                once_lock.set(f32::MAX).unwrap();
-                once_lock
-            },
+			weight: RwLock::new(f32::MAX),
 			enabled: RwLock::new(true),
             innov: innov.new_conn_innovation(input, output),
 		}
@@ -42,7 +38,7 @@ impl Conn {
 	}
 
 	pub fn weight(&self) -> f32 {
-		*self.weight.get().unwrap()
+		*self.weight.read().unwrap()
 	}
 
 	pub fn enabled(&self) -> bool {
@@ -58,13 +54,10 @@ impl Conn {
 	}
 
 	pub fn perturbe_weight(&self, rng: &mut impl Rng) {
-		// let weight = self.weight.take();
-		// self.weight.set(weight + rng.gen::<f32>());
         todo!();
 	}
 
 	pub fn replace_weight(&self, rng: &mut impl Rng) {
-		// self.weight.set(rng.gen())
         todo!();
 	}
 

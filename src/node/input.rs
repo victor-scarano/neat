@@ -1,4 +1,4 @@
-use crate::{activation, node::{ConnInput, Node}, Activation, Conn};
+use crate::{activation, node::{ConnInput, Node}, Activation, Conn, Innov, Config};
 use std::{cmp::Ordering, collections::BTreeSet, hash, sync::{Arc, RwLock}};
 use rand::Rng;
 
@@ -11,7 +11,7 @@ pub(crate) struct Input {
 }
 
 impl Node for Input {
-    fn new<R: Rng>(rng: &mut R, innov: &crate::Innov, config: &crate::Config) -> Self where Self: Sized {
+    fn new<R: Rng>(rng: &mut R, innov: Arc<Innov>, config: Arc<Config>) -> Self where Self: Sized {
         Self {
             forward_conns: RwLock::new(BTreeSet::new()),
             innov: innov.new_node_innovation(),

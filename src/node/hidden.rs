@@ -1,4 +1,4 @@
-use crate::{Activation, Conn, node::{ConnInput, ConnOutput, Node}};
+use crate::{Activation, Conn, node::{ConnInput, ConnOutput, Node}, Innov, Config};
 use std::{any::Any, cell::RefCell, cmp::Ordering, collections::BTreeSet, hash, sync::{Arc, RwLock}};
 use rand::Rng;
 
@@ -8,17 +8,17 @@ pub(crate) struct Hidden {
     backward_conns: RwLock<BTreeSet<Arc<Conn>>>,
     activation: Activation,
     bias: f32,
-    innovation: u32,
+    innov: u32,
 }
 
 impl Node for Hidden {
-    fn new<R: Rng>(rng: &mut R, innovation: &crate::Innov, config: &crate::Config) -> Self where Self: Sized {
+    fn new<R: Rng>(rng: &mut R, innov: Arc<Innov>, config: Arc<Config>) -> Self where Self: Sized {
         Self {
             forward_conns: RwLock::new(BTreeSet::new()),
             backward_conns: RwLock::new(BTreeSet::new()),
             activation: config.default_activation(),
             bias: config.new_node_bias(rng),
-            innovation: innovation.new_node_innovation(),
+            innov: innov.new_node_innovation(),
         }
     }
 
@@ -31,7 +31,7 @@ impl Node for Hidden {
     }
 
     fn innovation(&self) -> u32 {
-        self.innovation
+        self.innov
     }
 }
 
