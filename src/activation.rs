@@ -1,7 +1,13 @@
-use std::{any::Any, fmt, f32::consts::E, hash, sync::Arc};
+use std::{any::Any, fmt, f32::consts::E, ops::Deref, hash, sync::Arc};
 
 #[derive(Clone)]
-pub struct Activation(Arc<(dyn Fn(f32) -> f32 + Send + Sync + 'static)>);
+pub struct Activation(Arc<(dyn Fn(f32) -> f32 + Send + Sync)>);
+
+impl Activation {
+    pub(crate) fn call(&self, x: f32) -> f32 {
+        self.0(x)
+    }
+}
 
 impl fmt::Debug for Activation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

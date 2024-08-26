@@ -1,34 +1,45 @@
 use crate::{node::{ConnOutput, Node}, Activation, Config, Conn, Innov};
 use std::{collections::BTreeSet, hash, sync::{Arc, RwLock}};
+use rand::Rng;
 
 #[derive(Debug)]
 pub(crate) struct Output {
     backward_conns: RwLock<BTreeSet<Arc<Conn>>>,
     activation: Activation,
     bias: f32,
-    innovation: u32,
+    response: f32,
+    innov: u32,
 }
 
 impl Node for Output {
-    fn new<R: rand::Rng>(rng: &mut R, innovation: Arc<Innov>, config: Arc<Config>) -> Self where Self: Sized {
+    fn new<R>(rng: &mut R, innov: Arc<Innov>, config: Arc<Config>) -> Self
+    where
+        Self: Sized,
+        R: Rng
+    {
         Self {
             backward_conns: RwLock::new(BTreeSet::new()),
             activation: config.default_activation(),
             bias: config.new_node_bias(rng),
-            innovation: innovation.new_node_innovation(),
+            response: f32::MAX, // config.new_node_response(),
+            innov: innov.new_node_innov(),
         }
+    }
+
+    fn activation(&self, x: f32) -> f32 {
+        self.activation.call(x)
     }
 
     fn bias(&self) -> f32 {
         self.bias
     }
 
-    fn activation(&self) -> Activation {
-        self.activation.clone()
+    fn response(&self) -> f32 {
+        self.response
     }
 
-    fn innovation(&self) -> u32 {
-        self.innovation
+    fn innov(&self) -> u32 {
+        self.innov
     }
 }
 
@@ -44,17 +55,13 @@ impl ConnOutput for Output {
     fn num_backward_conns(&self) -> usize {
         self.backward_conns.read().unwrap().len()
     }
-
-    fn contains_backward_conn_by(&self, f: &mut dyn FnMut(Arc<Conn>) -> bool) -> bool where Self: Sized {
-        todo!()
-    }
 }
 
 impl Eq for Output {}
 
 impl hash::Hash for Output {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.activation().hash(state);
+        self.activation.hash(state);
         self.backward_conns.read().unwrap().iter().for_each(|node| Arc::as_ptr(node).hash(state));
     }
 }

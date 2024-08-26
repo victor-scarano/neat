@@ -118,7 +118,7 @@ impl Config {
     }
 
     pub fn insert_activation(mut self, rng: &mut impl Rng, activation: impl Into<Activation>) -> Self {
-        let _ = self.activations.get_or_init(|| Vec::new());
+        let _ = self.activations.get_or_init(Vec::new);
         self.activations.get_mut().unwrap().push(activation.into());
         self.update_default_activation(rng);
         self

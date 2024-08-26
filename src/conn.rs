@@ -17,7 +17,7 @@ impl Conn {
 			output: RwLock::new(output.clone()),
 			weight: RwLock::new(f32::MAX),
 			enabled: RwLock::new(true),
-            innov: innov.new_conn_innovation(input, output),
+            innov: innov.new_conn_innov(input, output),
 		}
 	}
 

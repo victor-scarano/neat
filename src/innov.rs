@@ -8,13 +8,13 @@ pub(crate) struct Innov {
 }
 
 impl Innov {
-	pub(crate) fn new_conn_innovation(&self, input: Arc<dyn Node>, output: Arc<dyn Node>) -> u32 {
-		let key = (input.innovation(), output.innovation());
+	pub(crate) fn new_conn_innov(&self, input: Arc<dyn Node>, output: Arc<dyn Node>) -> u32 {
+		let key = (input.innov(), output.innov());
 		let len = self.conns.borrow().len() as u32;
 		*self.conns.borrow_mut().entry(key).or_insert(len)
 	}
 
-	pub(crate) fn new_node_innovation(&self) -> u32 {
+	pub(crate) fn new_node_innov(&self) -> u32 {
 		let innov = self.nodes.take();
 		self.nodes.set(innov + 1);
 		innov

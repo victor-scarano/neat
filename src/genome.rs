@@ -95,7 +95,7 @@ impl Genome {
     }
 
     pub(crate) fn fitness(&self) -> f32 {
-        *self.fitness.get_or_init(|| f32::default())
+        *self.fitness.get_or_init(f32::default)
     }
 
     pub(crate) fn set_fitness(&mut self, fitness: f32) {
@@ -147,26 +147,31 @@ impl Genome {
 
     pub(crate) fn activate(&self, inputs: impl AsRef<[f32]>) -> impl AsRef<[f32]> {
         assert_eq!(inputs.as_ref().len(), self.input_nodes.len());
-        // activation ( bias + ( response * aggregation ( inputs ) ) ())
+        // activation ( bias + ( response * aggregation ( inputs ) ) )
         
-        let mut map: BTreeMap<Arc<dyn ConnOutput>, f32> = BTreeMap::new();
+        let mut map = BTreeMap::<Arc<dyn ConnOutput>, _>::new();
 
         for (node, input) in self.iter_input().zip(inputs.as_ref().iter()) {
-            for conn in node.iter_enabled_forward_conns() {
+            for conn in node.iter_forward_conns().filter(|conn| conn.enabled()) {
                 *map.entry(conn.output()).or_default() += input * conn.weight();
             }
         }
 
         while let Some((Ok(node), value)) = map
             .pop_last()
-            .and_then(|(node, value)| Some(((node as Arc<dyn Any + Send + Sync>).downcast::<Hidden>(), value)))
+            .map(|(node, value)| ((node as Arc<dyn Any + Send + Sync>).downcast::<Hidden>(), value))
         {
-            for conn in node.iter_enabled_forward_conns() {
+            // testing
+            // node.activation(node.bias() + (node.response() * ))
+
+            for conn in node.iter_forward_conns().filter(|conn| conn.enabled()) {
                 *map.entry(conn.output()).or_default() += value * conn.weight();
             }
         }
 
-        self.iter_output().map(|output| map.get(&(output as Arc<dyn ConnOutput>)).cloned().unwrap()).collect::<Vec<_>>()
+        self.iter_output().map(|output| {
+            map.get(&(output as Arc<dyn ConnOutput>)).cloned().unwrap()
+        }).collect::<Vec<_>>()
     }
 
     pub(crate) fn compat_dist(lhs: &Self, rhs: &Self) -> f32 {
