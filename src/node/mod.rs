@@ -1,108 +1,18 @@
-use crate::{Activation, Config, Conn, Innov};
-use std::{any::Any, cmp::Ordering, hash, sync::Arc, fmt};
+use crate::Conn;
 use rand::Rng;
 
 mod input;
-mod hidden;
-mod output;
 
-pub(crate) use input::Input;
-pub(crate) use hidden::Hidden;
-pub(crate) use output::Output;
-
-pub(crate) trait Node: Any + fmt::Debug + Send + Sync {
-    fn new<R>(rng: &mut R, innov: Arc<Innov>, config: Arc<Config>) -> Self
-    where
-        Self: Sized,
-        R: Rng;
-    fn activation(&self, x: f32) -> f32;
-    fn bias(&self) -> f32;
-    fn response(&self) -> f32;
-    fn innov(&self) -> u32;
+pub(crate) trait Node {
+    fn new<R: Rng>(rng: &mut R) -> Self where Self: Sized;
+    fn innov(&self) -> usize;
 }
 
-pub(crate) trait ConnInput: Node {
-    fn iter_forward_conns(&self) -> Box<dyn Iterator<Item = Arc<Conn>>>;
-    fn insert_forward_conn(&self, conn: Arc<Conn>);
-    fn num_forward_conns(&self) -> usize;
+pub(crate) trait ConnInput<'genome>: Node {
+    // might need to change the name to insert_forward_conn
+    fn insert_conn(&self, conn: &'genome Conn<'genome>);
+    fn num_conns(&self) -> usize;
+    fn iter_conns(&self) -> Box<dyn Iterator<Item = &&'genome Conn<'genome>>>;
 }
 
-pub(crate) trait ConnOutput: Node {
-    fn iter_backward_conns(&self) -> Box<dyn Iterator<Item = Arc<Conn>>>;
-    fn insert_backward_conn(&self, conn: Arc<Conn>);
-    fn num_backward_conns(&self) -> usize;
-}
-
-//impl Eq for dyn Node {}
-
-//impl hash::Hash for dyn Node {
-//    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-//        if let Some(input) = (self as &dyn Any).downcast_ref::<Input>() {
-//            input.hash(state);
-//        } else if let Some(hidden) = (self as &dyn Any).downcast_ref::<Hidden>() {
-//            hidden.hash(state);
-//        } else if let Some(output) = (self as &dyn Any).downcast_ref::<Output>() {
-//            output.hash(state);
-//        }
-//    }
-//}
-
-//impl PartialEq for dyn Node {
-//    fn eq(&self, other: &Self) -> bool {
-//        self.type_id() == other.type_id()
-//        // TODO
-//    }
-//}
-
-//impl PartialEq for dyn ConnInput {
-//    fn eq(&self, other: &dyn ConnInput) -> bool {
-//        self.type_id() == other.type_id() &&
-//        self.num_forward_conns() == other.num_forward_conns() &&
-//        self.iter_forward_conns().zip(other.iter_forward_conns()).all(|(a, b)| Arc::ptr_eq(&a, &b))
-//    }
-//}
-
-impl PartialEq for dyn ConnOutput {
-    fn eq(&self, other: &dyn ConnOutput) -> bool {
-        self.type_id() == other.type_id() &&
-        self.num_backward_conns() == other.num_backward_conns() &&
-        self.iter_backward_conns().zip(other.iter_backward_conns()).all(|(a, b)| Arc::ptr_eq(&a, &b))
-    }
-}
-
-//impl Eq for dyn ConnInput {}
-
-//impl Ord for dyn ConnInput {
-//    fn cmp(&self, other: &Self) -> Ordering {
-//        match ((self as &dyn Any).downcast_ref::<Input>(), (other as &dyn Any).downcast_ref::<Input>()) {
-//            (Some(_), None) => Ordering::Greater,
-//            (None, Some(_)) => Ordering::Less,
-//            _ => Ordering::Equal
-//        }
-//    }
-//}
-
-//impl PartialOrd for dyn ConnInput {
-//    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-//        Some(self.cmp(other))
-//    }
-//}
-
-impl Eq for dyn ConnOutput {}
-
-impl Ord for dyn ConnOutput {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match ((self as &dyn Any).downcast_ref::<Hidden>(), (other as &dyn Any).downcast_ref::<Hidden>()) {
-            (Some(_), None) => Ordering::Greater,
-            (None, Some(_)) => Ordering::Less,
-            _ => self.num_backward_conns().cmp(&other.num_backward_conns()).reverse()
-        }
-    }
-}
-
-impl PartialOrd for dyn ConnOutput {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
+pub(crate) trait ConnOutput<'genome>: Node {}

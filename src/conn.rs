@@ -1,108 +1,63 @@
-use crate::{Innov, Config, node::{ConnInput, ConnOutput, Hidden, Input, Node, Output}};
-use std::{cmp::Ordering, fmt, hash, iter, sync::{Arc, RwLock}};
-use rand::Rng;
+use crate::{node::{ConnInput, ConnOutput}, Population};
+use std::cmp::Ordering;
 
-pub(crate) struct Conn {
-	input: RwLock<Arc<dyn ConnInput>>,
-	output: RwLock<Arc<dyn ConnOutput>>,
-	weight: RwLock<f32>,
-	enabled: RwLock<bool>,
-	innov: u32,
+#[derive(Clone)]
+pub(crate) struct Conn<'genome> {
+    input: &'genome dyn ConnInput<'genome>,
+    output: &'genome dyn ConnOutput<'genome>,
+    weight: f32,
+    enabled: bool,
+    innov: usize,
 }
 
-impl Conn {
-	pub fn new(input: Arc<dyn ConnInput>, output: Arc<dyn ConnOutput>, innov: Arc<Innov>, config: Arc<Config>) -> Self {
-		Self {
-			input: RwLock::new(input.clone()),
-			output: RwLock::new(output.clone()),
-			weight: RwLock::new(f32::MAX),
-			enabled: RwLock::new(true),
-            innov: innov.new_conn_innov(input, output),
-		}
-	}
+impl<'genome> Conn<'genome> {
+    pub(crate) fn new(input: &'genome dyn ConnInput<'genome>, output: &'genome dyn ConnOutput<'genome>) -> Self {
+        Self {
+            input,
+            output,
+            weight: f32::NAN,
+            enabled: true,
+            innov: Population::next_conn_innov(input, output)
+        }
+    }
 
-	pub fn input(&self) -> Arc<dyn ConnInput> {
-	    self.input.read().unwrap().clone()
-	}
+    fn input(&self) -> &'genome dyn ConnInput {
+        self.input
+    }
 
-	pub fn output(&self) -> Arc<dyn ConnOutput> {
-	    self.output.read().unwrap().clone()
-	}
+    fn output(&self) -> &'genome dyn ConnOutput {
+        self.output
+    }
 
-	pub fn set_input(&self, f: impl Fn(Arc<dyn ConnInput>) -> Arc<dyn ConnInput>) {
-		*self.input.write().unwrap() = f(self.input());
-	}
+    fn weight(&self) -> f32 {
+        self.weight
+    }
 
-	pub fn set_output(&self, f: impl Fn(Arc<dyn ConnOutput>) -> Arc<dyn ConnOutput>) {
-		*self.output.write().unwrap() = f(self.output());
-	}
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
 
-	pub fn weight(&self) -> f32 {
-		*self.weight.read().unwrap()
-	}
-
-	pub fn enabled(&self) -> bool {
-		*self.enabled.read().unwrap()
-	}
-
-	pub fn disable(&self) {
-		*self.enabled.write().unwrap() = false;
-	}
-
-	pub fn innovation(&self) -> u32 {
-		self.innov
-	}
-
-	pub fn perturbe_weight(&self, rng: &mut impl Rng) {
-        todo!();
-	}
-
-	pub fn replace_weight(&self, rng: &mut impl Rng) {
-        todo!();
-	}
-
-	pub fn nodes(&self) -> impl Iterator<Item = Arc<dyn Node>> {
-        [self.input() as Arc<dyn Node>, self.output() as Arc<dyn Node>].into_iter()
-	}
+    fn innov(&self) -> usize {
+        self.innov
+    }
 }
 
-impl Eq for Conn {}
+impl Eq for Conn<'_> {}
 
-impl fmt::Debug for Conn {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Conn")
-			.field("addr", &format_args!("{:?}", self as *const Self))
-			.field("input", &format_args!("{:p}", self.input()))
-			.field("output", &format_args!("{:p}", self.output()))
-			.field("weight", &self.weight)
-			.field("enabled", &self.enabled())
-			.field("innov", &self.innov)
-			.finish()
-	}
+impl Ord for Conn<'_> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.innov.cmp(&other.innov)
+    }
 }
 
-impl hash::Hash for Conn {
-	fn hash<H: hash::Hasher>(&self, state: &mut H) {
-		Arc::as_ptr(&self.input()).hash(state);
-		Arc::as_ptr(&self.output()).hash(state);
-	}
+impl PartialEq for Conn<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.innov == other.innov
+    }
 }
 
-impl Ord for Conn {
-	fn cmp(&self, other: &Self) -> Ordering {
-		self.innov.cmp(&other.innov)
-	}
+impl PartialOrd for Conn<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
 }
-
-impl PartialEq for Conn {
-	fn eq(&self, other: &Self) -> bool {
-		Arc::ptr_eq(&self.input(), &other.input()) && Arc::ptr_eq(&self.output(), &other.output())
-	}
-}
-
-impl PartialOrd for Conn {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		Some(self.cmp(other))
-	}
-}
-
