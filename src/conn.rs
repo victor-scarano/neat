@@ -1,17 +1,17 @@
 use crate::{node::{ConnInput, ConnOutput}, Population};
-use std::cmp::Ordering;
+use std::{cmp::Ordering, hash};
 
 #[derive(Clone)]
-pub(crate) struct Conn<'genome> {
-    input: &'genome dyn ConnInput<'genome>,
-    output: &'genome dyn ConnOutput<'genome>,
+pub(crate) struct Conn<'g> {
+    input: &'g dyn ConnInput<'g>,
+    output: &'g dyn ConnOutput<'g>,
     weight: f32,
     enabled: bool,
     innov: usize,
 }
 
-impl<'genome> Conn<'genome> {
-    pub(crate) fn new(input: &'genome dyn ConnInput<'genome>, output: &'genome dyn ConnOutput<'genome>) -> Self {
+impl<'g> Conn<'g> {
+    pub(crate) fn new(input: &'g dyn ConnInput<'g>, output: &'g dyn ConnOutput<'g>) -> Self {
         Self {
             input,
             output,
@@ -21,42 +21,52 @@ impl<'genome> Conn<'genome> {
         }
     }
 
-    fn input(&self) -> &'genome dyn ConnInput {
+    pub(crate) fn input(&self) -> &'g dyn ConnInput<'g> {
         self.input
     }
 
-    fn output(&self) -> &'genome dyn ConnOutput {
+    pub(crate) fn output(&self) -> &'g dyn ConnOutput<'g> {
         self.output
     }
 
-    fn weight(&self) -> f32 {
+    pub(crate) fn weight(&self) -> f32 {
         self.weight
     }
 
-    fn enabled(&self) -> bool {
+    pub(crate) fn enabled(&self) -> bool {
         self.enabled
     }
 
-    fn innov(&self) -> usize {
+    pub(crate) fn innov(&self) -> usize {
         self.innov
+    }
+
+    pub(crate) fn disable(&mut self) {
+        self.enabled = false;
     }
 }
 
-impl Eq for Conn<'_> {}
+impl<'g> Eq for Conn<'g> {}
 
-impl Ord for Conn<'_> {
+impl<'g> hash::Hash for Conn<'g> {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        todo!()
+    }
+}
+
+impl<'g> Ord for Conn<'g> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.innov.cmp(&other.innov)
     }
 }
 
-impl PartialEq for Conn<'_> {
+impl<'g> PartialEq for Conn<'g> {
     fn eq(&self, other: &Self) -> bool {
         self.innov == other.innov
     }
 }
 
-impl PartialOrd for Conn<'_> {
+impl<'g> PartialOrd for Conn<'g> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(&other))
     }

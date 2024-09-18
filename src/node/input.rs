@@ -1,15 +1,15 @@
 use crate::{Conn, node::{Node, ConnInput}, Population};
-use std::cell::{Ref, RefCell};
+use std::{cell::RefCell, slice};
 
-struct Input<'genome> {
-    conns: RefCell<Vec<&'genome Conn<'genome>>>,
+pub(crate) struct Input<'g> {
+    conns: Vec<&'g RefCell<Conn<'g>>>,
     innov: usize,
 }
 
 impl Node for Input<'_> {
     fn new<R: rand::Rng>(_rng: &mut R) -> Self where Self: Sized {
         Self {
-            conns: RefCell::new(Vec::new()),
+            conns: Vec::new(),
             innov: Population::next_node_innov(),
         }
     }
@@ -19,16 +19,16 @@ impl Node for Input<'_> {
     }
 }
 
-impl<'genome> ConnInput<'genome> for Input<'genome> {
-    fn insert_conn(&self, conn: &'genome Conn<'genome>) {
-         self.conns.borrow_mut().push(conn);
+impl<'g> ConnInput<'g> for Input<'g> {
+    fn insert_conn(&mut self, conn: &'g RefCell<Conn<'g>>) {
+         self.conns.push(conn);
     }
 
     fn num_conns(&self) -> usize {
-        self.conns.borrow().len()
+        self.conns.len()
     }
 
-    fn iter_conns(&self) -> Box<dyn Iterator<Item = &&'genome Conn<'genome>>> {
-        Box::new(self.conns.borrow().iter())
+    fn iter_conns(&self) -> slice::Iter<&'g RefCell<Conn<'g>>> {
+        self.conns.iter()
     }
 }

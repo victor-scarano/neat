@@ -1,5 +1,5 @@
 #![feature(associated_type_defaults, cell_update)]
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports, unused_variables)]
 
 mod conn;
 mod genome;
