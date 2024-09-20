@@ -1,9 +1,9 @@
 use crate::{conn::Conn, node::{Node, ConnInput, ConnOutput, Hidden, Input, Output}};
-use std::{cell::RefCell, collections::{BTreeSet, HashSet}};
+use std::collections::{BTreeSet, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
 pub(crate) struct Genome<'g> {
-    conns: BTreeSet<RefCell<Conn<'g>>>,
+    conns: BTreeSet<Conn<'g>>,
     input: Box<[Input<'g>]>,
     hidden: HashSet<Hidden<'g>>,
     output: Box<[Output]>,
@@ -11,20 +11,19 @@ pub(crate) struct Genome<'g> {
 }
 
 impl<'g> Genome<'g> {
-    fn insert_conn(&mut self, conn: Conn<'g>) -> &RefCell<Conn<'g>> {
-        let conn = RefCell::new(conn);
+    fn insert_conn(&mut self, input: &'g dyn ConnInput<'g>, output: &'g dyn ConnOutput<'g>) -> &Conn<'g> {
+        let conn = Conn::new(input, output);
         self.conns.insert(conn.clone());
         self.conns.get(&conn).unwrap()
     }
 
-    fn iter_conns(&self) -> impl Iterator<Item = &RefCell<Conn<'g>>> {
+    fn iter_conns(&self) -> impl Iterator<Item = &Conn<'g>> {
         self.conns.iter()
     }
 
-    fn insert_node(&mut self, _node: Hidden<'g>) -> &Hidden<'g> {
-        // self.hidden.insert(node.clone());
-        // self.hidden.get(&node).unwrap();
-        self.hidden.iter().nth(0).unwrap()
+    fn insert_node(&mut self, node: Hidden<'g>) -> &Hidden<'g> {
+        self.hidden.insert(node.clone());
+        self.hidden.get(&node).unwrap()
     }
 
     fn iter_input(&self) -> impl Iterator<Item = &Input<'g>> {
@@ -54,26 +53,19 @@ impl<'g> Genome<'g> {
     }
 
     fn mutate_split_conn(&'g mut self, rng: &mut impl Rng) {
-        let (input, output) = {
-            let mut split_conn = self.iter_conns()
-                .filter(|conn| conn.borrow().enabled())
-                .choose(rng)
-                .unwrap()
-                .borrow_mut();
+        let conn = self.iter_conns().filter(|conn| conn.enabled()).choose(rng).unwrap();
 
-            split_conn.disable();
+        conn.disable();
 
-            (split_conn.input(), split_conn.output())
-        };
+        let input = conn.input();
+        let output = conn.output();
 
-        /*
-        let mid_node = *self.insert_node(Hidden::new(rng));
+        let middle = self.insert_node(Hidden::new(rng));
 
-        let initial_node = self.insert_conn(Conn::new(input, self.hidden.get(&mid_node).unwrap()));
-        let final_node = self.insert_conn(Conn::new(self.hidden.get(&mid_node).unwrap(), output));
+        let initial = self.insert_conn(input, middle);
+        let r#final = self.insert_conn(middle, output);
 
-        mid_node.insert_conn(initial_node);
-        mid_node.insert_conn(initial_node);
-        */
+        // mid.insert_conn(initial);
+        // mid.insert_conn(initial);
     }
 }

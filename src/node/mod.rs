@@ -17,9 +17,9 @@ pub(crate) trait Node {
 
 pub(crate) trait ConnInput<'g>: Node {
     // might need to change the name to insert_forward_conn
-    fn insert_conn(&mut self, conn: &'g RefCell<Conn<'g>>);
+    fn insert_conn(&mut self, conn: &'g Conn<'g>);
     fn num_conns(&self) -> usize;
-    fn iter_conns(&self) -> slice::Iter<&'g RefCell<Conn<'g>>>;
+    fn iter_conns(&self) -> slice::Iter<&'g Conn<'g>>;
 }
 
 pub(crate) trait ConnOutput<'g>: Node {}

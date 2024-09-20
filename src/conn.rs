@@ -1,12 +1,12 @@
 use crate::{node::{ConnInput, ConnOutput}, Population};
-use std::{cmp::Ordering, hash};
+use std::{cell::Cell, cmp::Ordering, hash};
 
 #[derive(Clone)]
 pub(crate) struct Conn<'g> {
     input: &'g dyn ConnInput<'g>,
     output: &'g dyn ConnOutput<'g>,
     weight: f32,
-    enabled: bool,
+    enabled: Cell<bool>,
     innov: usize,
 }
 
@@ -16,7 +16,7 @@ impl<'g> Conn<'g> {
             input,
             output,
             weight: f32::NAN,
-            enabled: true,
+            enabled: Cell::new(true),
             innov: Population::next_conn_innov(input, output)
         }
     }
@@ -34,15 +34,15 @@ impl<'g> Conn<'g> {
     }
 
     pub(crate) fn enabled(&self) -> bool {
-        self.enabled
+        self.enabled.get()
     }
 
     pub(crate) fn innov(&self) -> usize {
         self.innov
     }
 
-    pub(crate) fn disable(&mut self) {
-        self.enabled = false;
+    pub(crate) fn disable(&self) {
+        self.enabled.set(false);
     }
 }
 

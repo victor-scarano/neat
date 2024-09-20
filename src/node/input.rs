@@ -1,8 +1,8 @@
 use crate::{Conn, node::{Node, ConnInput}, Population};
-use std::{cell::RefCell, slice};
+use std::slice;
 
 pub(crate) struct Input<'g> {
-    conns: Vec<&'g RefCell<Conn<'g>>>,
+    conns: Vec<&'g Conn<'g>>,
     innov: usize,
 }
 
@@ -20,7 +20,7 @@ impl Node for Input<'_> {
 }
 
 impl<'g> ConnInput<'g> for Input<'g> {
-    fn insert_conn(&mut self, conn: &'g RefCell<Conn<'g>>) {
+    fn insert_conn(&mut self, conn: &'g Conn<'g>) {
          self.conns.push(conn);
     }
 
@@ -28,7 +28,7 @@ impl<'g> ConnInput<'g> for Input<'g> {
         self.conns.len()
     }
 
-    fn iter_conns(&self) -> slice::Iter<&'g RefCell<Conn<'g>>> {
+    fn iter_conns(&self) -> slice::Iter<&'g Conn<'g>> {
         self.conns.iter()
     }
 }
