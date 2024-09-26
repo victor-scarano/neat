@@ -3,30 +3,31 @@ use std::{cell::Cell, cmp::Ordering, hash};
 
 #[derive(Clone)]
 pub(crate) struct Conn<'g> {
-    input: &'g dyn ConnInput<'g>,
-    output: &'g dyn ConnOutput<'g>,
+    input: ConnInput<'g>,
+    output: ConnOutput<'g>,
     weight: f32,
     enabled: Cell<bool>,
     innov: usize,
 }
 
 impl<'g> Conn<'g> {
-    pub(crate) fn new(input: &'g dyn ConnInput<'g>, output: &'g dyn ConnOutput<'g>) -> Self {
+    pub(crate) fn new(input: ConnInput<'g>, output: ConnOutput<'g>) -> Self {
+        // TODO: Assert that input and output are not pointing to the same connection.
         Self {
-            input,
-            output,
+            input: input.clone(),
+            output: output.clone(),
             weight: f32::NAN,
             enabled: Cell::new(true),
             innov: Population::next_conn_innov(input, output)
         }
     }
 
-    pub(crate) fn input(&self) -> &'g dyn ConnInput<'g> {
-        self.input
+    pub(crate) fn input(&self) -> ConnInput<'g> {
+        self.input.clone()
     }
 
-    pub(crate) fn output(&self) -> &'g dyn ConnOutput<'g> {
-        self.output
+    pub(crate) fn output(&self) -> ConnOutput<'g> {
+        self.output.clone()
     }
 
     pub(crate) fn weight(&self) -> f32 {

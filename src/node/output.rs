@@ -1,14 +1,17 @@
-use crate::{node::{Node, ConnOutput}, Population};
+use crate::{node::*, Population};
 use rand::Rng;
 
 pub(crate) struct Output {
     innov: usize,
 }
 
+impl Output {
+}
+
 impl Node for Output {
-    fn new<R: Rng>(rng: &mut R) -> Self where Self: Sized {
+    fn new<R: Rng>(rng: &mut R) -> Self {
         Self {
-            innov: Population::next_node_innov()
+            innov: Population::next_node_innov(),
         }
     }
 
@@ -17,4 +20,4 @@ impl Node for Output {
     }
 }
 
-impl<'g> ConnOutput<'g> for Output {}
+impl<'g> InternalConnOutput for Output {}

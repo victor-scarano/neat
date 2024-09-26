@@ -1,15 +1,16 @@
-use crate::{Conn, node::{Node, ConnInput}, Population};
-use std::slice;
+use crate::{Conn, node::*, Population};
+use std::{cell::{Ref, RefCell}, slice};
+use rand::Rng;
 
 pub(crate) struct Input<'g> {
-    conns: Vec<&'g Conn<'g>>,
+    conns: RefCell<Vec<&'g Conn<'g>>>,
     innov: usize,
 }
 
-impl Node for Input<'_> {
-    fn new<R: rand::Rng>(_rng: &mut R) -> Self where Self: Sized {
+impl<'g> Node for Input<'g> {
+    fn new<R: Rng>(rng: &mut R) -> Self {
         Self {
-            conns: Vec::new(),
+            conns: RefCell::new(Vec::new()),
             innov: Population::next_node_innov(),
         }
     }
@@ -19,16 +20,12 @@ impl Node for Input<'_> {
     }
 }
 
-impl<'g> ConnInput<'g> for Input<'g> {
-    fn insert_conn(&mut self, conn: &'g Conn<'g>) {
-         self.conns.push(conn);
+impl<'g> InternalConnInput<'g> for Input<'g> {
+    fn insert_conn(&self, conn: &'g Conn<'g>) {
+         self.conns.borrow_mut().push(conn);
     }
 
-    fn num_conns(&self) -> usize {
-        self.conns.len()
-    }
-
-    fn iter_conns(&self) -> slice::Iter<&'g Conn<'g>> {
-        self.conns.iter()
+    fn conns(&self) -> Ref<Vec<&'g Conn<'g>>> {
+        self.conns.borrow()
     }
 }

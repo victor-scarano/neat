@@ -9,7 +9,7 @@ thread_local! {
 pub struct Population;
 
 impl Population {
-    pub(crate) fn next_conn_innov(input: &dyn ConnInput, output: &dyn ConnOutput) -> usize {
+    pub(crate) fn next_conn_innov(input: ConnInput, output: ConnOutput) -> usize {
         let key = (input.innov(), output.innov());
         CONNS.with(|conns| {
             let mut conns = conns.borrow_mut();

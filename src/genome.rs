@@ -1,71 +1,47 @@
-use crate::{conn::Conn, node::{Node, ConnInput, ConnOutput, Hidden, Input, Output}};
+use crate::{conn::Conn, node::*};
 use std::collections::{BTreeSet, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
-pub(crate) struct Genome<'g> {
+pub(crate) struct Genome<'g, const INPUTS: usize, const OUTPUTS: usize> {
     conns: BTreeSet<Conn<'g>>,
-    input: Box<[Input<'g>]>,
+    input: [Input<'g>; INPUTS],
     hidden: HashSet<Hidden<'g>>,
-    output: Box<[Output]>,
+    output: [Output; OUTPUTS],
     fitness: f32,
 }
 
-impl<'g> Genome<'g> {
-    fn insert_conn(&mut self, input: &'g dyn ConnInput<'g>, output: &'g dyn ConnOutput<'g>) -> &Conn<'g> {
-        let conn = Conn::new(input, output);
-        self.conns.insert(conn.clone());
-        self.conns.get(&conn).unwrap()
+impl<'g, const INPUTS: usize, const OUTPUTS: usize> Genome<'g, INPUTS, OUTPUTS> {
+    fn iter_conn_inputs(&'g self) -> impl Iterator<Item = ConnInput<'g>> {
+        self.input.iter().map(|input| input.into()).chain(self.hidden.iter().map(|hidden| hidden.into()))
     }
 
-    fn iter_conns(&self) -> impl Iterator<Item = &Conn<'g>> {
-        self.conns.iter()
+    fn iter_conn_outputs(&'g self) -> impl Iterator<Item = ConnOutput<'g>> {
+        self.hidden.iter().map(|hidden| hidden.into()).chain(self.output.iter().map(|output| output.into()))
     }
 
-    fn insert_node(&mut self, node: Hidden<'g>) -> &Hidden<'g> {
-        self.hidden.insert(node.clone());
-        self.hidden.get(&node).unwrap()
-    }
-
-    fn iter_input(&self) -> impl Iterator<Item = &Input<'g>> {
-        self.input.iter()
-    }
-
-    fn iter_hidden(&self) -> impl Iterator<Item = &Hidden<'g>> {
-        self.hidden.iter()
-    }
-
-    fn iter_output(&self) -> impl Iterator<Item = &Output> {
-        self.output.iter()
-    }
-
-    fn iter_conn_inputs(&self) -> impl Iterator<Item = &dyn ConnInput<'g>> {
-        self.iter_input().map(|input| input as &dyn ConnInput)
-            .chain(self.iter_hidden().map(|hidden| hidden as &dyn ConnInput))
-    }
-
-    fn iter_conn_outputs(&self) -> impl Iterator<Item = &dyn ConnOutput<'g>> {
-        self.iter_hidden().map(|hidden| hidden as &dyn ConnOutput)
-            .chain(self.iter_output().map(|output| output as &dyn ConnOutput))
-    }
-
-    fn mutate_add_conn(&mut self, _rng: &mut impl Rng) {
-        todo!()
+    fn mutate_add_conn(&'g mut self, rng: &mut impl Rng) {
+        let rand_input = self.iter_conn_inputs().choose(rng).unwrap();
     }
 
     fn mutate_split_conn(&'g mut self, rng: &mut impl Rng) {
-        let conn = self.iter_conns().filter(|conn| conn.enabled()).choose(rng).unwrap();
-
+        let conn = self.conns.iter().filter(|conn| conn.enabled()).choose(rng).unwrap();
         conn.disable();
 
-        let input = conn.input();
-        let output = conn.output();
+        let node = Hidden::new(rng);
+        self.hidden.insert(node.clone());
+        let middle = self.hidden.get(&node).unwrap();
 
-        let middle = self.insert_node(Hidden::new(rng));
+        let initial = Conn::new(conn.input(), middle.into());
+        let r#final = Conn::new(middle.into(), conn.output());
 
-        let initial = self.insert_conn(input, middle);
-        let r#final = self.insert_conn(middle, output);
+        self.conns.insert(initial.clone());
+        let initial = self.conns.get(&initial).unwrap();
 
-        // mid.insert_conn(initial);
-        // mid.insert_conn(initial);
+        self.conns.insert(r#final.clone());
+        let r#final = self.conns.get(&r#final).unwrap();
+    }
+
+    fn activate(&mut self, inputs: [f32; INPUTS]) -> [f32; OUTPUTS] {
+        todo!()
     }
 }
