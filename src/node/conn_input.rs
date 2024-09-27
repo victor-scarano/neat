@@ -1,13 +1,13 @@
-use crate::{Conn, node::*};
-use std::{cell::{Ref, RefCell}, slice};
+use crate::node::*;
+use std::cell::Ref;
 
 #[derive(Clone)]
-pub(crate) enum ConnInput<'g> {
-    Input(&'g Input<'g>),
-    Hidden(&'g Hidden<'g>),
+pub(crate) enum ConnInput<'genome> {
+    Input(&'genome Input<'genome>),
+    Hidden(&'genome Hidden<'genome>),
 }
 
-impl<'g> ConnInput<'g> {
+impl<'genome> ConnInput<'genome> {
     pub(crate) fn innov(&self) -> usize {
         match self {
             Self::Input(input) => input.innov(),
@@ -16,30 +16,39 @@ impl<'g> ConnInput<'g> {
     }
 }
 
-impl<'g> InternalConnInput<'g> for ConnInput<'g> {
-    fn insert_conn(&self, conn: &'g Conn<'g>) {
+impl<'genome> ConnInputable<'genome> for ConnInput<'genome> {
+    fn insert_forward_conn(&self, conn: &'genome Conn<'genome>) {
         match self {
-            Self::Input(input) => input.insert_conn(conn),
-            Self::Hidden(hidden) => hidden.insert_conn(conn),
+            Self::Input(input) => input.insert_forward_conn(conn),
+            Self::Hidden(hidden) => hidden.insert_forward_conn(conn),
         }
     }
 
-    fn conns(&self) -> Ref<Vec<&'g Conn<'g>>> {
+    fn forward_conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
         match self {
-            Self::Input(input) => input.conns(),
-            Self::Hidden(hidden) => hidden.conns(),
+            Self::Input(input) => input.forward_conns(),
+            Self::Hidden(hidden) => hidden.forward_conns(),
         }
     }
 }
 
-impl<'g> From<&'g Input<'g>> for ConnInput<'g> {
-    fn from(value: &'g Input<'g>) -> Self {
+impl<'genome> From<&'genome Input<'genome>> for ConnInput<'genome> {
+    fn from(value: &'genome Input<'genome>) -> Self {
         Self::Input(value)
     }
 }
 
-impl<'g> From<&'g Hidden<'g>> for ConnInput<'g> {
-    fn from(value: &'g Hidden<'g>) -> Self {
+impl<'genome> From<&'genome Hidden<'genome>> for ConnInput<'genome> {
+    fn from(value: &'genome Hidden<'genome>) -> Self {
         Self::Hidden(value)
+    }
+}
+
+impl<'genome> PartialEq<ConnOutput<'genome>> for ConnInput<'genome> {
+    fn eq(&self, other: &ConnOutput<'genome>) -> bool {
+        match (self, other) {
+            (Self::Hidden(lhs), ConnOutput::Hidden(rhs)) => lhs == rhs,
+            _ => false
+        }
     }
 }

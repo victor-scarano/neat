@@ -1,31 +1,69 @@
-use crate::{Conn, node::*};
-use std::slice;
+use crate::node::*;
+use std::cmp::Ordering;
 
-#[derive(Clone)]
-pub(crate) enum ConnOutput<'g> {
-    Hidden(&'g Hidden<'g>),
-    Output(&'g Output),
+#[derive(Eq, Clone, PartialEq)]
+pub(crate) enum ConnOutput<'genome> {
+    Hidden(&'genome Hidden<'genome>),
+    Output(&'genome Output),
 }
 
-impl<'g> ConnOutput<'g> {
+impl<'genome> ConnOutput<'genome> {
     pub(crate) fn innov(&self) -> usize {
         match self {
-            Self::Hidden(ref hidden) => hidden.innov(),
-            Self::Output(ref output) => output.innov(),
+            Self::Hidden(hidden) => hidden.innov(),
+            Self::Output(output) => output.innov(),
         }
     }
 }
 
-impl<'g> InternalConnOutput for ConnOutput<'g> {}
+impl<'genome> ConnOutputable for ConnOutput<'genome> {
+    fn inc_backward_conns(&self) {
+        match self {
+            Self::Hidden(hidden) => hidden.inc_backward_conns(),
+            Self::Output(output) => output.inc_backward_conns(),
+        }
+    }
 
-impl<'g> From<&'g Hidden<'g>> for ConnOutput<'g> {
-    fn from(value: &'g Hidden<'g>) -> Self {
+    fn num_backward_conns(&self) -> usize {
+        match self {
+            Self::Hidden(hidden) => hidden.num_backward_conns(),
+            Self::Output(output) => output.num_backward_conns(),
+        }
+    }
+}
+
+impl<'genome> From<&'genome Hidden<'genome>> for ConnOutput<'genome> {
+    fn from(value: &'genome Hidden<'genome>) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl<'g> From<&'g Output> for ConnOutput<'g> {
-    fn from(value: &'g Output) -> Self {
+impl<'genome> From<&'genome Output> for ConnOutput<'genome> {
+    fn from(value: &'genome Output) -> Self {
         Self::Output(value)
+    }
+}
+
+impl<'genome> Ord for ConnOutput<'genome> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // self is hidden && other is output -> Less
+        // self is output && other is hidden -> Greater
+        // self is hidden && other is hidden -> most back conns
+        todo!();
+    }
+}
+
+impl<'genome> PartialEq<ConnInput<'genome>> for ConnOutput<'genome> {
+    fn eq(&self, other: &ConnInput<'genome>) -> bool {
+        match (self, other) {
+            (Self::Hidden(lhs), ConnInput::Hidden(rhs)) => lhs == rhs,
+            _ => false
+        }
+    }
+}
+
+impl<'genome> PartialOrd for ConnOutput<'genome> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

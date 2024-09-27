@@ -2,16 +2,16 @@ use crate::{node::{ConnInput, ConnOutput}, Population};
 use std::{cell::Cell, cmp::Ordering, hash};
 
 #[derive(Clone)]
-pub(crate) struct Conn<'g> {
-    input: ConnInput<'g>,
-    output: ConnOutput<'g>,
+pub(crate) struct Conn<'genome> {
+    input: ConnInput<'genome>,
+    output: ConnOutput<'genome>,
     weight: f32,
     enabled: Cell<bool>,
     innov: usize,
 }
 
-impl<'g> Conn<'g> {
-    pub(crate) fn new(input: ConnInput<'g>, output: ConnOutput<'g>) -> Self {
+impl<'genome> Conn<'genome> {
+    pub(crate) fn new(input: ConnInput<'genome>, output: ConnOutput<'genome>) -> Self {
         // TODO: Assert that input and output are not pointing to the same connection.
         Self {
             input: input.clone(),
@@ -22,11 +22,11 @@ impl<'g> Conn<'g> {
         }
     }
 
-    pub(crate) fn input(&self) -> ConnInput<'g> {
+    pub(crate) fn input(&self) -> ConnInput<'genome> {
         self.input.clone()
     }
 
-    pub(crate) fn output(&self) -> ConnOutput<'g> {
+    pub(crate) fn output(&self) -> ConnOutput<'genome> {
         self.output.clone()
     }
 
@@ -47,28 +47,28 @@ impl<'g> Conn<'g> {
     }
 }
 
-impl<'g> Eq for Conn<'g> {}
+impl<'genome> Eq for Conn<'genome> {}
 
-impl<'g> hash::Hash for Conn<'g> {
+impl<'genome> hash::Hash for Conn<'genome> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         todo!()
     }
 }
 
-impl<'g> Ord for Conn<'g> {
+impl<'genome> Ord for Conn<'genome> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.innov.cmp(&other.innov)
     }
 }
 
-impl<'g> PartialEq for Conn<'g> {
+impl<'genome> PartialEq for Conn<'genome> {
     fn eq(&self, other: &Self) -> bool {
         self.innov == other.innov
     }
 }
 
-impl<'g> PartialOrd for Conn<'g> {
+impl<'genome> PartialOrd for Conn<'genome> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }

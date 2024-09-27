@@ -1,5 +1,5 @@
-#![feature(associated_type_defaults, cell_update)]
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code, clippy::mutable_key_type, unused_variables)]
+#![feature(cell_update)]
 
 mod conn;
 mod genome;

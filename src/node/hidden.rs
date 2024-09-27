@@ -1,26 +1,19 @@
 use crate::{Conn, node::*, Population};
-use std::{cell::{Ref, RefCell}, hash, slice};
+use std::{cell::{Cell, Ref, RefCell}, hash};
 use rand::Rng;
 
 #[derive(Clone, Eq, PartialEq)]
-pub(crate) struct Hidden<'g> {
-    conns: RefCell<Vec<&'g Conn<'g>>>,
+pub(crate) struct Hidden<'genome> {
+    conns: RefCell<Vec<&'genome Conn<'genome>>>,
+    num_backward_conns: Cell<usize>,
     innov: usize,
 }
 
-impl<'g> Hidden<'g> {
-    pub(crate) fn new(rng: &mut impl Rng) -> Self {
-        Self {
-            conns: RefCell::new(Vec::new()),
-            innov: Population::next_node_innov(),
-        }
-    }
-}
-
-impl<'g> Node for Hidden<'g> {
+impl<'genome> Node for Hidden<'genome> {
     fn new<R: Rng>(rng: &mut R) -> Self {
         Self {
             conns: RefCell::new(Vec::new()),
+            num_backward_conns: Cell::new(0),
             innov: Population::next_node_innov(),
         }
     }
@@ -30,19 +23,27 @@ impl<'g> Node for Hidden<'g> {
     }
 }
 
-impl<'g> InternalConnInput<'g> for Hidden<'g> {
-    fn insert_conn(&self, conn: &'g Conn<'g>) {
+impl<'genome> ConnInputable<'genome> for Hidden<'genome> {
+    fn insert_forward_conn(&self, conn: &'genome Conn<'genome>) {
         self.conns.borrow_mut().push(conn);
     }
 
-    fn conns(&self) -> Ref<Vec<&'g Conn<'g>>> {
+    fn forward_conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
         self.conns.borrow()
     }
 }
 
-impl<'g> InternalConnOutput for Hidden<'g> {}
+impl<'genome> ConnOutputable for Hidden<'genome> {
+    fn inc_backward_conns(&self) {
+        self.num_backward_conns.update(|curr| curr + 1);
+    }
 
-impl<'g> hash::Hash for Hidden<'g> {
+    fn num_backward_conns(&self) -> usize {
+        self.num_backward_conns.get()
+    }
+}
+
+impl<'genome> hash::Hash for Hidden<'genome> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         todo!()
     }

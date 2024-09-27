@@ -1,5 +1,5 @@
 use crate::Conn;
-use std::{cell::{Ref, RefCell}, slice};
+use std::cell::Ref;
 use rand::Rng;
 
 mod conn_input;
@@ -19,10 +19,13 @@ pub(crate) trait Node {
     fn innov(&self) -> usize;
 }
 
-trait InternalConnInput<'g> {
+pub(crate) trait ConnInputable<'genome> {
     // might need to change the name to insert_forward_conn
-    fn insert_conn(&self, conn: &'g Conn<'g>);
-    fn conns(&self) -> Ref<Vec<&'g Conn<'g>>>;
+    fn insert_forward_conn(&self, conn: &'genome Conn<'genome>);
+    fn forward_conns(&self) -> Ref<Vec<&'genome Conn<'genome>>>;
 }
 
-trait InternalConnOutput {}
+pub(crate) trait ConnOutputable {
+    fn inc_backward_conns(&self);
+    fn num_backward_conns(&self) -> usize;
+}

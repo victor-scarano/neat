@@ -1,13 +1,13 @@
 use crate::{Conn, node::*, Population};
-use std::{cell::{Ref, RefCell}, slice};
+use std::cell::{Ref, RefCell};
 use rand::Rng;
 
-pub(crate) struct Input<'g> {
-    conns: RefCell<Vec<&'g Conn<'g>>>,
+pub(crate) struct Input<'genome> {
+    conns: RefCell<Vec<&'genome Conn<'genome>>>,
     innov: usize,
 }
 
-impl<'g> Node for Input<'g> {
+impl<'genome> Node for Input<'genome> {
     fn new<R: Rng>(rng: &mut R) -> Self {
         Self {
             conns: RefCell::new(Vec::new()),
@@ -20,12 +20,12 @@ impl<'g> Node for Input<'g> {
     }
 }
 
-impl<'g> InternalConnInput<'g> for Input<'g> {
-    fn insert_conn(&self, conn: &'g Conn<'g>) {
+impl<'genome> ConnInputable<'genome> for Input<'genome> {
+    fn insert_forward_conn(&self, conn: &'genome Conn<'genome>) {
          self.conns.borrow_mut().push(conn);
     }
 
-    fn conns(&self) -> Ref<Vec<&'g Conn<'g>>> {
+    fn forward_conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
         self.conns.borrow()
     }
 }
