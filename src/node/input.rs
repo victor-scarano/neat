@@ -4,6 +4,7 @@ use rand::Rng;
 
 pub(crate) struct Input<'genome> {
     conns: RefCell<Vec<&'genome Conn<'genome>>>,
+    bias: f32,
     innov: usize,
 }
 
@@ -11,8 +12,13 @@ impl<'genome> Node for Input<'genome> {
     fn new<R: Rng>(rng: &mut R) -> Self {
         Self {
             conns: RefCell::new(Vec::new()),
+            bias: f32::NAN,
             innov: Population::next_node_innov(),
         }
+    }
+
+    fn bias(&self) -> f32 {
+        self.bias
     }
 
     fn innov(&self) -> usize {

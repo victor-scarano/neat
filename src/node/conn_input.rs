@@ -8,6 +8,20 @@ pub(crate) enum ConnInput<'genome> {
 }
 
 impl<'genome> ConnInput<'genome> {
+    fn input(&self) -> Option<&Input<'genome>> {
+        match self {
+            Self::Input(input) => Some(input),
+            Self::Hidden(_) => None,
+        }
+    }
+
+    fn hidden(&self) -> Option<&Hidden<'genome>> {
+        match self {
+            Self::Input(_) => None,
+            Self::Hidden(hidden) => Some(hidden),
+        }
+    }
+
     pub(crate) fn innov(&self) -> usize {
         match self {
             Self::Input(input) => input.innov(),

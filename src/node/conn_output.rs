@@ -8,6 +8,20 @@ pub(crate) enum ConnOutput<'genome> {
 }
 
 impl<'genome> ConnOutput<'genome> {
+    fn hidden(&self) -> Option<&Hidden<'genome>> {
+        match self {
+            Self::Hidden(hidden) => Some(hidden),
+            Self::Output(_) => None,
+        }
+    }
+
+    fn output(&self) -> Option<&Output> {
+        match self {
+            Self::Hidden(_) => None,
+            Self::Output(output) => Some(output),
+        }
+    }
+
     pub(crate) fn innov(&self) -> usize {
         match self {
             Self::Hidden(hidden) => hidden.innov(),
@@ -28,6 +42,13 @@ impl<'genome> ConnOutputable for ConnOutput<'genome> {
         match self {
             Self::Hidden(hidden) => hidden.num_backward_conns(),
             Self::Output(output) => output.num_backward_conns(),
+        }
+    }
+
+    fn activate(&self, x: f32) -> f32 {
+        match self {
+            Self::Hidden(hidden) => hidden.activate(x),
+            Self::Output(output) => output.activate(x),
         }
     }
 }

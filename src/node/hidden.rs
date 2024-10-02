@@ -2,10 +2,12 @@ use crate::{Conn, node::*, Population};
 use std::{cell::{Cell, Ref, RefCell}, hash};
 use rand::Rng;
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct Hidden<'genome> {
     conns: RefCell<Vec<&'genome Conn<'genome>>>,
     num_backward_conns: Cell<usize>,
+    activation: Cell<fn(f32) -> f32>,
+    bias: f32,
     innov: usize,
 }
 
@@ -14,8 +16,14 @@ impl<'genome> Node for Hidden<'genome> {
         Self {
             conns: RefCell::new(Vec::new()),
             num_backward_conns: Cell::new(0),
+            activation: Cell::new(|_| f32::NAN),
+            bias: f32::NAN,
             innov: Population::next_node_innov(),
         }
+    }
+
+    fn bias(&self) -> f32 {
+        self.bias
     }
 
     fn innov(&self) -> usize {
@@ -41,7 +49,13 @@ impl<'genome> ConnOutputable for Hidden<'genome> {
     fn num_backward_conns(&self) -> usize {
         self.num_backward_conns.get()
     }
+
+    fn activate(&self, x: f32) -> f32 {
+        self.activation.get()(x)
+    }
 }
+
+impl<'genome> Eq for Hidden<'genome> {}
 
 impl<'genome> hash::Hash for Hidden<'genome> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {

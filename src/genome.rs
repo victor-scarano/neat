@@ -51,14 +51,28 @@ impl<'genome, const INPUTS: usize, const OUTPUTS: usize> Genome<'genome, INPUTS,
     }
 
     fn activate(&self, inputs: [f32; INPUTS]) -> [f32; OUTPUTS] {
-        let mut map = BTreeMap::<ConnOutput, f32>::new();
+        // The output value of a node is defined by:
+        // activation(bias + (response * aggregation(inputs)))
+        // input nodes have: activ=ident, resp=0, agreg=none
+
+        let mut map = BTreeMap::<_, f32>::new();
 
         for (node, input) in self.input.iter().zip(inputs.iter()) {
             for conn in node.forward_conns().iter().filter(|conn| conn.enabled()) {
-                *map.entry(conn.output()).or_default() += input * conn.weight();
+                *map.entry(conn.output()).or_default() += (node.bias() * input) * conn.weight();
             }
         }
 
+        while let Some((hidden, value)) = map.pop_last().and_then(|(node, value)| match node {
+            ConnOutput::Hidden(hidden) => Some((hidden, value)),
+            ConnOutput::Output(_) => None,
+        }) {
+            for conn in hidden.forward_conns().iter().filter(|conn| conn.enabled()) {
+                *map.entry(conn.output()).or_default() += value * conn.weight();
+            }
+        }
+
+        // TURN INTO AN ACCUMULATOR + AGGREGATOR
         todo!();
     }
 
