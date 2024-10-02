@@ -3,7 +3,7 @@ use std::cell::{Ref, RefCell};
 use rand::Rng;
 
 pub(crate) struct Input<'genome> {
-    conns: RefCell<Vec<&'genome Conn<'genome>>>,
+    forward_conns: RefCell<Vec<&'genome Conn<'genome>>>,
     bias: f32,
     innov: usize,
 }
@@ -11,7 +11,7 @@ pub(crate) struct Input<'genome> {
 impl<'genome> Node for Input<'genome> {
     fn new<R: Rng>(rng: &mut R) -> Self {
         Self {
-            conns: RefCell::new(Vec::new()),
+            forward_conns: RefCell::new(Vec::new()),
             bias: f32::NAN,
             innov: Population::next_node_innov(),
         }
@@ -28,10 +28,10 @@ impl<'genome> Node for Input<'genome> {
 
 impl<'genome> ConnInputable<'genome> for Input<'genome> {
     fn insert_forward_conn(&self, conn: &'genome Conn<'genome>) {
-         self.conns.borrow_mut().push(conn);
+         self.forward_conns.borrow_mut().push(conn);
     }
 
     fn forward_conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
-        self.conns.borrow()
+        self.forward_conns.borrow()
     }
 }

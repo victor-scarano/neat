@@ -51,7 +51,6 @@ impl<'genome, const INPUTS: usize, const OUTPUTS: usize> Genome<'genome, INPUTS,
     }
 
     fn activate(&self, inputs: [f32; INPUTS]) -> [f32; OUTPUTS] {
-        // The output value of a node is defined by:
         // activation(bias + (response * aggregation(inputs)))
         // input nodes have: activ=ident, resp=0, agreg=none
 
@@ -63,10 +62,20 @@ impl<'genome, const INPUTS: usize, const OUTPUTS: usize> Genome<'genome, INPUTS,
             }
         }
 
-        while let Some((hidden, value)) = map.pop_last().and_then(|(node, value)| match node {
-            ConnOutput::Hidden(hidden) => Some((hidden, value)),
-            ConnOutput::Output(_) => None,
-        }) {
+        // Currently iterates over all hidden nodes in the map in order of first
+        // input > hidden > output, then if a == b, node with the least backward conns.
+        //
+        // How can we iterate in order least remaining input connections to visit?
+        //
+        // Mutating a counter that tracks the remaining input connections to visit
+        // is a violation of the BTreeMap contract that states that "It is a logic
+        // error for a key to be modified in such a way that the key's ordering
+        // relative to any other key, as determined by the Ord trait, changes while
+        // it is in the map."
+        //
+        // Removing an entry from the map using BTreeMap::pop_last, mutating the key,
+        // then reinserting the entry is a viable solution that takes O(2log(n)) time.
+        while let Some((Some(hidden), value)) = map.pop_last().map(|(node, value)| (node.hidden(), value)) {
             for conn in hidden.forward_conns().iter().filter(|conn| conn.enabled()) {
                 *map.entry(conn.output()).or_default() += value * conn.weight();
             }

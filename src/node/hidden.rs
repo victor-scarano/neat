@@ -4,7 +4,7 @@ use rand::Rng;
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Hidden<'genome> {
-    conns: RefCell<Vec<&'genome Conn<'genome>>>,
+    forward_conns: RefCell<Vec<&'genome Conn<'genome>>>,
     num_backward_conns: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
     bias: f32,
@@ -14,7 +14,7 @@ pub(crate) struct Hidden<'genome> {
 impl<'genome> Node for Hidden<'genome> {
     fn new<R: Rng>(rng: &mut R) -> Self {
         Self {
-            conns: RefCell::new(Vec::new()),
+            forward_conns: RefCell::new(Vec::new()),
             num_backward_conns: Cell::new(0),
             activation: Cell::new(|_| f32::NAN),
             bias: f32::NAN,
@@ -33,11 +33,11 @@ impl<'genome> Node for Hidden<'genome> {
 
 impl<'genome> ConnInputable<'genome> for Hidden<'genome> {
     fn insert_forward_conn(&self, conn: &'genome Conn<'genome>) {
-        self.conns.borrow_mut().push(conn);
+        self.forward_conns.borrow_mut().push(conn);
     }
 
     fn forward_conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
-        self.conns.borrow()
+        self.forward_conns.borrow()
     }
 }
 

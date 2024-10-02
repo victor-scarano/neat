@@ -8,17 +8,17 @@ pub(crate) enum ConnInput<'genome> {
 }
 
 impl<'genome> ConnInput<'genome> {
-    fn input(&self) -> Option<&Input<'genome>> {
+    fn input(&self) -> Option<&'genome Input<'genome>> {
         match self {
-            Self::Input(input) => Some(input),
+            Self::Input(input) => Some(*input),
             Self::Hidden(_) => None,
         }
     }
 
-    fn hidden(&self) -> Option<&Hidden<'genome>> {
+    fn hidden(&self) -> Option<&'genome Hidden<'genome>> {
         match self {
             Self::Input(_) => None,
-            Self::Hidden(hidden) => Some(hidden),
+            Self::Hidden(hidden) => Some(*hidden),
         }
     }
 
