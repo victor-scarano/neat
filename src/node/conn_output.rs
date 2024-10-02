@@ -1,7 +1,7 @@
 use crate::node::*;
 use std::cmp::Ordering;
 
-#[derive(Eq, Clone, PartialEq)]
+#[derive(Eq, Clone, Debug, PartialEq)]
 pub(crate) enum ConnOutput<'genome> {
     Hidden(&'genome Hidden<'genome>),
     Output(&'genome Output),

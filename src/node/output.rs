@@ -2,7 +2,7 @@ use crate::{node::*, Population};
 use std::cell::Cell;
 use rand::Rng;
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(crate) struct Output {
     num_backward_conns: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,

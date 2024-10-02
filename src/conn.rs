@@ -1,7 +1,7 @@
 use crate::{node::{ConnInput, ConnOutput}, Population};
 use std::{cell::Cell, cmp::Ordering, hash};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Conn<'genome> {
     input: ConnInput<'genome>,
     output: ConnOutput<'genome>,
@@ -12,7 +12,7 @@ pub(crate) struct Conn<'genome> {
 
 impl<'genome> Conn<'genome> {
     pub(crate) fn new(input: ConnInput<'genome>, output: ConnOutput<'genome>) -> Self {
-        // TODO: Assert that input and output are not pointing to the same connection.
+        assert_ne!(input, output);
         Self {
             input: input.clone(),
             output: output.clone(),

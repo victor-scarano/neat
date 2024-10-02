@@ -1,7 +1,7 @@
 use crate::node::*;
-use std::cell::Ref;
+use std::{cell::Ref, ptr};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum ConnInput<'genome> {
     Input(&'genome Input<'genome>),
     Hidden(&'genome Hidden<'genome>),
@@ -61,7 +61,7 @@ impl<'genome> From<&'genome Hidden<'genome>> for ConnInput<'genome> {
 impl<'genome> PartialEq<ConnOutput<'genome>> for ConnInput<'genome> {
     fn eq(&self, other: &ConnOutput<'genome>) -> bool {
         match (self, other) {
-            (Self::Hidden(lhs), ConnOutput::Hidden(rhs)) => lhs == rhs,
+            (Self::Hidden(lhs), ConnOutput::Hidden(rhs)) => ptr::eq(*lhs, *rhs),
             _ => false
         }
     }

@@ -2,6 +2,7 @@ use crate::{Conn, node::*, Population};
 use std::cell::{Ref, RefCell};
 use rand::Rng;
 
+#[derive(Debug)]
 pub(crate) struct Input<'genome> {
     forward_conns: RefCell<Vec<&'genome Conn<'genome>>>,
     bias: f32,

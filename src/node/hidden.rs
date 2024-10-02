@@ -2,7 +2,7 @@ use crate::{Conn, node::*, Population};
 use std::{cell::{Cell, Ref, RefCell}, hash};
 use rand::Rng;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Hidden<'genome> {
     forward_conns: RefCell<Vec<&'genome Conn<'genome>>>,
     num_backward_conns: Cell<usize>,
