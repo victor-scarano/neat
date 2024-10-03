@@ -1,19 +1,18 @@
 use crate::{node::*, Population};
-use std::cell::Cell;
-use rand::Rng;
+use std::{cell::Cell, cmp};
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct Output {
-    level: usize,
+    level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
     bias: f32,
     innov: usize,
 }
 
 impl Output {
-    fn new(rng: &mut impl Rng) -> Self {
+    fn new() -> Self {
         Self {
-            level: usize::MAX,
+            level: 1.into(),
             activation: Cell::new(|_| f32::NAN),
             bias: f32::NAN,
             innov: Population::next_node_innov(),
@@ -22,6 +21,10 @@ impl Output {
 }
 
 impl Node for Output {
+    fn level(&self) -> usize {
+        self.level.get()
+    }
+
     fn bias(&self) -> f32 {
         self.bias
     }
@@ -32,8 +35,8 @@ impl Node for Output {
 }
 
 impl ConnOutputable for Output {
-    fn level(&self) -> usize {
-        self.level
+    fn update_level(&self, level: usize) {
+        self.level.update(|current| cmp::max(current, level));
     }
 
     fn activate(&self, x: f32) -> f32 {

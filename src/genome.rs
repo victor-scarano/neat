@@ -25,15 +25,13 @@ impl<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> Genome<'genome,
         let conn = Conn::new(input.clone(), output);
         self.conns.insert(conn.clone());
         let conn = self.conns.get(&conn).unwrap();
-        
-        // input.insert_forward_conn(conn);
     }
 
     fn mutate_split_conn(&'genome mut self) {
         let conn = self.conns.iter().filter(|conn| conn.enabled()).choose(&mut self.rng).unwrap();
         conn.disable();
 
-        let node = Hidden::new(&mut self.rng);
+        let node = Hidden::new(conn);
         self.hidden.insert(node.clone());
         let middle = self.hidden.get(&node).unwrap();
 
@@ -59,8 +57,12 @@ impl<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> Genome<'genome,
 
         for (node, input) in self.input.iter().zip(inputs.iter()) {
             for conn in node.conns().iter().filter(|conn| conn.enabled()) {
-                *map.entry(conn.output()).or_default() += (node.bias() * input) * conn.weight();
+                *map.entry(conn.output()).or_default() += (node.bias() + input) * conn.weight();
             }
+        }
+
+        for conn in self.conns.iter().filter(|conn| conn.input().hidden().is_some()) {
+            todo!();
         }
 
         todo!();

@@ -1,6 +1,5 @@
 use crate::{Conn, node::*, Population};
 use std::cell::{Ref, RefCell};
-use rand::Rng;
 
 #[derive(Debug)]
 pub(crate) struct Input<'genome> {
@@ -10,7 +9,7 @@ pub(crate) struct Input<'genome> {
 }
 
 impl<'genome> Input<'genome> {
-    fn new(rng: &mut impl Rng) -> Self {
+    fn new() -> Self {
         Self {
             conns: Default::default(),
             bias: f32::NAN,
@@ -28,6 +27,10 @@ impl<'genome> Input<'genome> {
 }
 
 impl Node for Input<'_> {
+    fn level(&self) -> usize {
+        0
+    }
+
     fn bias(&self) -> f32 {
         self.bias
     }

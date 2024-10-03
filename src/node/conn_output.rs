@@ -30,11 +30,34 @@ impl<'genome> ConnOutput<'genome> {
     }
 }
 
-impl ConnOutputable for ConnOutput<'_> {
+impl Node for ConnOutput<'_> {
     fn level(&self) -> usize {
         match self {
             Self::Hidden(hidden) => hidden.level(),
             Self::Output(output) => output.level(),
+        }
+    }
+
+    fn bias(&self) -> f32 {
+        match self {
+            Self::Hidden(hidden) => hidden.bias(),
+            Self::Output(output) => output.bias(),
+        }
+    }
+
+    fn innov(&self) -> usize {
+        match self {
+            Self::Hidden(hidden) => hidden.innov(),
+            Self::Output(output) => output.innov(),
+        }
+    }
+}
+
+impl ConnOutputable for ConnOutput<'_> {
+    fn update_level(&self, level: usize) {
+        match self {
+            Self::Hidden(hidden) => hidden.update_level(level),
+            Self::Output(output) => output.update_level(level),
         }
     }
 

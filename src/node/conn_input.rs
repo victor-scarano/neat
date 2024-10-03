@@ -15,7 +15,7 @@ impl<'genome> ConnInput<'genome> {
         }
     }
 
-    fn hidden(&self) -> Option<&'genome Hidden> {
+    pub(crate) fn hidden(&self) -> Option<&'genome Hidden> {
         match self {
             Self::Input(_) => None,
             Self::Hidden(hidden) => Some(*hidden),
@@ -31,6 +31,13 @@ impl<'genome> ConnInput<'genome> {
 }
 
 impl Node for ConnInput<'_> {
+    fn level(&self) -> usize {
+        match self {
+            Self::Input(input) => input.level(),
+            Self::Hidden(hidden) => hidden.level(),
+        }
+    }
+
     fn bias(&self) -> f32 {
         match self {
             Self::Input(input) => input.bias(),
