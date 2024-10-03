@@ -1,22 +1,24 @@
-use crate::{Conn, node::*, Population};
+use crate::{conn::Conn, node::*, population::Population};
 use std::{cell::Cell, cmp, hash};
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Hidden {
+pub struct Hidden {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
+    response: f32,
     bias: f32,
     innov: usize,
 }
 
 impl Hidden {
-    pub(crate) fn new(split: &Conn) -> Self {
-        let curr_level = split.input().level() + 1;
-        split.output().update_level(curr_level + 1);
+    pub fn new(split: &Conn) -> Self {
+        let curr_level = split.conn_input().level() + 1;
+        split.conn_output().update_level(curr_level + 1);
 
         Self {
             level: Cell::new(curr_level),
             activation: Cell::new(|_| f32::NAN),
+            response: f32::NAN,
             bias: f32::NAN,
             innov: Population::next_node_innov(),
         }
@@ -46,6 +48,10 @@ impl ConnOutputable for Hidden {
 
     fn activate(&self, x: f32) -> f32 {
         self.activation.get()(x)
+    }
+
+    fn response(&self) -> f32 {
+        self.response
     }
 }
 

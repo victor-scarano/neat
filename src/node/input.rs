@@ -1,15 +1,15 @@
-use crate::{Conn, node::*, Population};
+use crate::{conn::Conn, node::*, population::Population};
 use std::cell::{Ref, RefCell};
 
 #[derive(Debug)]
-pub(crate) struct Input<'genome> {
+pub struct Input<'genome> {
     conns: RefCell<Vec<&'genome Conn<'genome>>>,
     bias: f32,
     innov: usize,
 }
 
 impl<'genome> Input<'genome> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             conns: Default::default(),
             bias: f32::NAN,
@@ -17,7 +17,7 @@ impl<'genome> Input<'genome> {
         }
     }
 
-    pub(crate) fn conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
+    pub fn conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
         self.conns.borrow()
     }
 

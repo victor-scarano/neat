@@ -2,27 +2,27 @@ use crate::node::*;
 use std::cmp::Ordering;
 
 #[derive(Eq, Clone, Debug, PartialEq)]
-pub(crate) enum ConnOutput<'genome> {
+pub enum ConnOutput<'genome> {
     Hidden(&'genome Hidden),
     Output(&'genome Output),
 }
 
 impl<'genome> ConnOutput<'genome> {
-    pub(crate) fn hidden(&self) -> Option<&'genome Hidden> {
+    pub const fn hidden(&self) -> Option<&'genome Hidden> {
         match self {
             Self::Hidden(hidden) => Some(*hidden),
             Self::Output(_) => None,
         }
     }
 
-    fn output(&self) -> Option<&'genome Output> {
+    pub const fn output(&self) -> Option<&'genome Output> {
         match self {
             Self::Hidden(_) => None,
             Self::Output(output) => Some(*output),
         }
     }
 
-    pub(crate) fn innov(&self) -> usize {
+    pub fn innov(&self) -> usize {
         match self {
             Self::Hidden(hidden) => hidden.innov(),
             Self::Output(output) => output.innov(),
@@ -65,6 +65,13 @@ impl ConnOutputable for ConnOutput<'_> {
         match self {
             Self::Hidden(hidden) => hidden.activate(x),
             Self::Output(output) => output.activate(x),
+        }
+    }
+
+    fn response(&self) -> f32 {
+        match self {
+            Self::Hidden(hidden) => hidden.response(),
+            Self::Output(output) => output.response(),
         }
     }
 }

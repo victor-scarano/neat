@@ -1,8 +1,8 @@
-use crate::{node::*, Population};
+use crate::{node::*, population::Population};
 use std::{cell::Cell, cmp::Ordering, hash};
 
 #[derive(Clone, Debug)]
-pub(crate) struct Conn<'genome> {
+pub struct Conn<'genome> {
     input: ConnInput<'genome>,
     output: ConnOutput<'genome>,
     level: usize,
@@ -12,7 +12,7 @@ pub(crate) struct Conn<'genome> {
 }
 
 impl<'genome> Conn<'genome> {
-    pub(crate) fn new(input: ConnInput<'genome>, output: ConnOutput<'genome>) -> Self {
+    pub fn new(input: ConnInput<'genome>, output: ConnOutput<'genome>) -> Self {
         assert_ne!(input, output);
 
         output.update_level(input.level() + 1);
@@ -27,27 +27,31 @@ impl<'genome> Conn<'genome> {
         }
     }
 
-    pub(crate) fn input(&self) -> ConnInput<'genome> {
+    pub fn conn_input(&self) -> ConnInput<'genome> {
         self.input.clone()
     }
 
-    pub(crate) fn output(&self) -> ConnOutput<'genome> {
+    pub fn conn_output(&self) -> ConnOutput<'genome> {
         self.output.clone()
     }
 
-    pub(crate) fn weight(&self) -> f32 {
+    pub const fn level(&self) -> usize {
+        self.level
+    }
+
+    pub const fn weight(&self) -> f32 {
         self.weight
     }
 
-    pub(crate) fn enabled(&self) -> bool {
+    pub fn enabled(&self) -> bool {
         self.enabled.get()
     }
 
-    pub(crate) fn innov(&self) -> usize {
+    pub const fn innov(&self) -> usize {
         self.innov
     }
 
-    pub(crate) fn disable(&self) {
+    pub fn disable(&self) {
         self.enabled.set(false);
     }
 }

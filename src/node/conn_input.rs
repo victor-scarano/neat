@@ -2,27 +2,27 @@ use crate::node::*;
 use std::ptr;
 
 #[derive(Clone, Debug)]
-pub(crate) enum ConnInput<'genome> {
+pub enum ConnInput<'genome> {
     Input(&'genome Input<'genome>),
     Hidden(&'genome Hidden),
 }
 
 impl<'genome> ConnInput<'genome> {
-    pub(crate) fn input(&self) -> Option<&'genome Input> {
+    pub const fn input(&self) -> Option<&'genome Input> {
         match self {
             Self::Input(input) => Some(*input),
             Self::Hidden(_) => None,
         }
     }
 
-    pub(crate) fn hidden(&self) -> Option<&'genome Hidden> {
+    pub const fn hidden(&self) -> Option<&'genome Hidden> {
         match self {
             Self::Input(_) => None,
             Self::Hidden(hidden) => Some(*hidden),
         }
     }
 
-    pub(crate) fn innov(&self) -> usize {
+    pub fn innov(&self) -> usize {
         match self {
             Self::Input(input) => input.innov(),
             Self::Hidden(hidden) => hidden.innov(),

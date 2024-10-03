@@ -1,19 +1,21 @@
-use crate::{node::*, Population};
+use crate::{node::*, population::Population};
 use std::{cell::Cell, cmp};
 
 #[derive(Debug, PartialEq)]
-pub(crate) struct Output {
+pub struct Output {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
+    response: f32,
     bias: f32,
     innov: usize,
 }
 
 impl Output {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             level: 1.into(),
             activation: Cell::new(|_| f32::NAN),
+            response: f32::NAN,
             bias: f32::NAN,
             innov: Population::next_node_innov(),
         }
@@ -41,6 +43,10 @@ impl ConnOutputable for Output {
 
     fn activate(&self, x: f32) -> f32 {
         self.activation.get()(x)
+    }
+
+    fn response(&self) -> f32 {
+        self.response
     }
 }
 
