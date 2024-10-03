@@ -1,10 +1,11 @@
-use crate::{node::{ConnInput, ConnOutput}, Population};
+use crate::{node::{Node, ConnInput, ConnOutput}, Population};
 use std::{cell::Cell, cmp::Ordering, hash};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Conn<'genome> {
     input: ConnInput<'genome>,
     output: ConnOutput<'genome>,
+    level: usize,
     weight: f32,
     enabled: Cell<bool>,
     innov: usize,
@@ -13,11 +14,13 @@ pub(crate) struct Conn<'genome> {
 impl<'genome> Conn<'genome> {
     pub(crate) fn new(input: ConnInput<'genome>, output: ConnOutput<'genome>) -> Self {
         assert_ne!(input, output);
+
         Self {
             input: input.clone(),
             output: output.clone(),
+            level: input.input(),
             weight: f32::NAN,
-            enabled: Cell::new(true),
+            enabled: true.into(),
             innov: Population::next_conn_innov(input, output)
         }
     }
@@ -57,7 +60,7 @@ impl<'genome> hash::Hash for Conn<'genome> {
 
 impl<'genome> Ord for Conn<'genome> {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.innov.cmp(&other.innov)
+        self.level.cmp(&other.level).reverse()
     }
 }
 
@@ -72,3 +75,4 @@ impl<'genome> PartialOrd for Conn<'genome> {
         Some(self.cmp(other))
     }
 }
+

@@ -1,27 +1,27 @@
-use crate::{Conn, node::*, Population};
-use std::{cell::{Cell, Ref, RefCell}, hash};
+use crate::{node::*, Population};
+use std::{cell::Cell, hash};
 use rand::Rng;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Hidden<'genome> {
-    forward_conns: RefCell<Vec<&'genome Conn<'genome>>>,
-    num_backward_conns: Cell<usize>,
+pub(crate) struct Hidden {
+    level: usize,
     activation: Cell<fn(f32) -> f32>,
     bias: f32,
     innov: usize,
 }
 
-impl<'genome> Node for Hidden<'genome> {
-    fn new<R: Rng>(rng: &mut R) -> Self {
+impl Hidden {
+    pub(crate) fn new(rng: &mut impl Rng) -> Self {
         Self {
-            forward_conns: RefCell::new(Vec::new()),
-            num_backward_conns: Cell::new(0),
+            level: usize::MAX,
             activation: Cell::new(|_| f32::NAN),
             bias: f32::NAN,
             innov: Population::next_node_innov(),
         }
     }
+}
 
+impl Node for Hidden {
     fn bias(&self) -> f32 {
         self.bias
     }
@@ -31,23 +31,11 @@ impl<'genome> Node for Hidden<'genome> {
     }
 }
 
-impl<'genome> ConnInputable<'genome> for Hidden<'genome> {
-    fn insert_forward_conn(&self, conn: &'genome Conn<'genome>) {
-        self.forward_conns.borrow_mut().push(conn);
-    }
+impl ConnInputable for Hidden {}
 
-    fn forward_conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
-        self.forward_conns.borrow()
-    }
-}
-
-impl<'genome> ConnOutputable for Hidden<'genome> {
-    fn inc_backward_conns(&self) {
-        self.num_backward_conns.update(|curr| curr + 1);
-    }
-
-    fn num_backward_conns(&self) -> usize {
-        self.num_backward_conns.get()
+impl ConnOutputable for Hidden {
+    fn level(&self) -> usize {
+        self.level
     }
 
     fn activate(&self, x: f32) -> f32 {
@@ -55,9 +43,9 @@ impl<'genome> ConnOutputable for Hidden<'genome> {
     }
 }
 
-impl<'genome> Eq for Hidden<'genome> {}
+impl Eq for Hidden {}
 
-impl<'genome> hash::Hash for Hidden<'genome> {
+impl hash::Hash for Hidden {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         todo!()
     }

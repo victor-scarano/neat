@@ -4,20 +4,30 @@ use rand::Rng;
 
 #[derive(Debug)]
 pub(crate) struct Input<'genome> {
-    forward_conns: RefCell<Vec<&'genome Conn<'genome>>>,
+    conns: RefCell<Vec<&'genome Conn<'genome>>>,
     bias: f32,
     innov: usize,
 }
 
-impl<'genome> Node for Input<'genome> {
-    fn new<R: Rng>(rng: &mut R) -> Self {
+impl<'genome> Input<'genome> {
+    fn new(rng: &mut impl Rng) -> Self {
         Self {
-            forward_conns: RefCell::new(Vec::new()),
+            conns: Default::default(),
             bias: f32::NAN,
             innov: Population::next_node_innov(),
         }
     }
 
+    pub(crate) fn conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
+        self.conns.borrow()
+    }
+
+    fn insert_conn(&self, conn: &'genome Conn<'genome>) {
+        self.conns.borrow_mut().push(conn);
+    }
+}
+
+impl Node for Input<'_> {
     fn bias(&self) -> f32 {
         self.bias
     }
@@ -27,12 +37,4 @@ impl<'genome> Node for Input<'genome> {
     }
 }
 
-impl<'genome> ConnInputable<'genome> for Input<'genome> {
-    fn insert_forward_conn(&self, conn: &'genome Conn<'genome>) {
-         self.forward_conns.borrow_mut().push(conn);
-    }
-
-    fn forward_conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
-        self.forward_conns.borrow()
-    }
-}
+impl ConnInputable for Input<'_> {}

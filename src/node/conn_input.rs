@@ -1,21 +1,21 @@
 use crate::node::*;
-use std::{cell::Ref, ptr};
+use std::ptr;
 
 #[derive(Clone, Debug)]
 pub(crate) enum ConnInput<'genome> {
     Input(&'genome Input<'genome>),
-    Hidden(&'genome Hidden<'genome>),
+    Hidden(&'genome Hidden),
 }
 
 impl<'genome> ConnInput<'genome> {
-    fn input(&self) -> Option<&'genome Input<'genome>> {
+    pub(crate) fn input(&self) -> Option<&'genome Input> {
         match self {
             Self::Input(input) => Some(*input),
             Self::Hidden(_) => None,
         }
     }
 
-    fn hidden(&self) -> Option<&'genome Hidden<'genome>> {
+    fn hidden(&self) -> Option<&'genome Hidden> {
         match self {
             Self::Input(_) => None,
             Self::Hidden(hidden) => Some(*hidden),
@@ -30,21 +30,23 @@ impl<'genome> ConnInput<'genome> {
     }
 }
 
-impl<'genome> ConnInputable<'genome> for ConnInput<'genome> {
-    fn insert_forward_conn(&self, conn: &'genome Conn<'genome>) {
+impl Node for ConnInput<'_> {
+    fn bias(&self) -> f32 {
         match self {
-            Self::Input(input) => input.insert_forward_conn(conn),
-            Self::Hidden(hidden) => hidden.insert_forward_conn(conn),
+            Self::Input(input) => input.bias(),
+            Self::Hidden(hidden) => hidden.bias(),
         }
     }
 
-    fn forward_conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
+    fn innov(&self) -> usize {
         match self {
-            Self::Input(input) => input.forward_conns(),
-            Self::Hidden(hidden) => hidden.forward_conns(),
+            Self::Input(input) => input.innov(),
+            Self::Hidden(hidden) => hidden.innov(),
         }
     }
 }
+
+impl ConnInputable for ConnInput<'_> {}
 
 impl<'genome> From<&'genome Input<'genome>> for ConnInput<'genome> {
     fn from(value: &'genome Input<'genome>) -> Self {
@@ -52,8 +54,8 @@ impl<'genome> From<&'genome Input<'genome>> for ConnInput<'genome> {
     }
 }
 
-impl<'genome> From<&'genome Hidden<'genome>> for ConnInput<'genome> {
-    fn from(value: &'genome Hidden<'genome>) -> Self {
+impl<'genome> From<&'genome Hidden> for ConnInput<'genome> {
+    fn from(value: &'genome Hidden) -> Self {
         Self::Hidden(value)
     }
 }

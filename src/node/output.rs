@@ -4,22 +4,24 @@ use rand::Rng;
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct Output {
-    num_backward_conns: Cell<usize>,
+    level: usize,
     activation: Cell<fn(f32) -> f32>,
     bias: f32,
     innov: usize,
 }
 
-impl Node for Output {
-    fn new<R: Rng>(rng: &mut R) -> Self {
+impl Output {
+    fn new(rng: &mut impl Rng) -> Self {
         Self {
-            num_backward_conns: Cell::new(0),
+            level: usize::MAX,
             activation: Cell::new(|_| f32::NAN),
             bias: f32::NAN,
             innov: Population::next_node_innov(),
         }
     }
+}
 
+impl Node for Output {
     fn bias(&self) -> f32 {
         self.bias
     }
@@ -30,14 +32,10 @@ impl Node for Output {
 }
 
 impl ConnOutputable for Output {
-    fn inc_backward_conns(&self) {
-        self.num_backward_conns.update(|curr| curr + 1);
+    fn level(&self) -> usize {
+        self.level
     }
 
-    fn num_backward_conns(&self) -> usize {
-        self.num_backward_conns.get()
-    }
-    
     fn activate(&self, x: f32) -> f32 {
         self.activation.get()(x)
     }

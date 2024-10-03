@@ -5,7 +5,7 @@ use rand::{Rng, seq::IteratorRandom};
 pub(crate) struct Genome<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> {
     conns: BTreeSet<Conn<'genome>>,
     input: [Input<'genome>; INPUTS],
-    hidden: HashSet<Hidden<'genome>>,
+    hidden: HashSet<Hidden>,
     output: [Output; OUTPUTS],
     fitness: f32,
     rng: R
@@ -26,7 +26,7 @@ impl<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> Genome<'genome,
         self.conns.insert(conn.clone());
         let conn = self.conns.get(&conn).unwrap();
         
-        input.insert_forward_conn(conn);
+        // input.insert_forward_conn(conn);
     }
 
     fn mutate_split_conn(&'genome mut self) {
@@ -58,14 +58,8 @@ impl<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> Genome<'genome,
         let mut map = BTreeMap::<_, f32>::new();
 
         for (node, input) in self.input.iter().zip(inputs.iter()) {
-            for conn in node.forward_conns().iter().filter(|conn| conn.enabled()) {
+            for conn in node.conns().iter().filter(|conn| conn.enabled()) {
                 *map.entry(conn.output()).or_default() += (node.bias() * input) * conn.weight();
-            }
-        }
-
-        while let Some((Some(hidden), value)) = map.pop_last().map(|(node, value)| (node.hidden(), value)) {
-            for conn in hidden.forward_conns().iter().filter(|conn| conn.enabled()) {
-                *map.entry(conn.output()).or_default() += value * conn.weight();
             }
         }
 
