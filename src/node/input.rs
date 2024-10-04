@@ -1,32 +1,21 @@
-use crate::{conn::Conn, node::*, population::Population};
-use std::cell::{Ref, RefCell};
+use crate::{node::*, population::Population};
 
 #[derive(Debug)]
-pub struct Input<'genome> {
-    conns: RefCell<Vec<&'genome Conn<'genome>>>,
+pub struct Input {
     bias: f32,
     innov: usize,
 }
 
-impl<'genome> Input<'genome> {
+impl Input {
     pub fn new() -> Self {
         Self {
-            conns: Default::default(),
             bias: f32::NAN,
             innov: Population::next_node_innov(),
         }
     }
-
-    pub fn conns(&self) -> Ref<Vec<&'genome Conn<'genome>>> {
-        self.conns.borrow()
-    }
-
-    fn insert_conn(&self, conn: &'genome Conn<'genome>) {
-        self.conns.borrow_mut().push(conn);
-    }
 }
 
-impl Node for Input<'_> {
+impl Node for Input {
     fn level(&self) -> usize {
         0
     }
@@ -40,4 +29,4 @@ impl Node for Input<'_> {
     }
 }
 
-impl ConnInputable for Input<'_> {}
+impl ConnInputable for Input {}

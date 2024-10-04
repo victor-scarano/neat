@@ -3,7 +3,7 @@ use std::ptr;
 
 #[derive(Clone, Debug)]
 pub enum ConnInput<'genome> {
-    Input(&'genome Input<'genome>),
+    Input(&'genome Input),
     Hidden(&'genome Hidden),
 }
 
@@ -55,8 +55,8 @@ impl Node for ConnInput<'_> {
 
 impl ConnInputable for ConnInput<'_> {}
 
-impl<'genome> From<&'genome Input<'genome>> for ConnInput<'genome> {
-    fn from(value: &'genome Input<'genome>) -> Self {
+impl<'genome> From<&'genome Input> for ConnInput<'genome> {
+    fn from(value: &'genome Input) -> Self {
         Self::Input(value)
     }
 }

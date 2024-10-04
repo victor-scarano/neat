@@ -1,29 +1,29 @@
 use crate::{conn::Conn, node::*};
-use std::{collections::{BTreeMap, BTreeSet, HashSet}, fmt};
+use std::{array, collections::*, fmt};
 use rand::{Rng, seq::IteratorRandom};
 
 pub struct Genome<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> {
     conns: BTreeSet<Conn<'genome>>,
-    input: [Input<'genome>; INPUTS],
+    input: Box<[Input; INPUTS]>,
     hidden: HashSet<Hidden>,
-    output: [Output; OUTPUTS],
+    output: Box<[Output; OUTPUTS]>,
     fitness: f32,
-    rng: R
+    rng: R,
 }
 
 impl<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> Genome<'genome, INPUTS, OUTPUTS, R> {
     pub fn new(rng: R) -> Self {
         Self {
             conns: BTreeSet::new(),
-            input: std::array::from_fn::<_, INPUTS, _>(|idx| Input::new()),
+            input: array::from_fn::<_, INPUTS, _>(|idx| Input::new()).into(),
             hidden: HashSet::new(),
-            output: std::array::from_fn::<_, OUTPUTS, _>(|idx| Output::new()),
+            output: array::from_fn::<_, OUTPUTS, _>(|idx| Output::new()).into(),
             fitness: f32::default(),
             rng,
         }
     }
 
-    pub fn mutate_add_conn(&'genome mut self) {
+    pub fn mutate_add_conn(&mut self) {
         let input: ConnInput = self.input.iter().map(|input| input.into())
             .chain(self.hidden.iter().map(|hidden| hidden.into()))
             .choose(&mut self.rng).unwrap();
@@ -35,7 +35,6 @@ impl<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> Genome<'genome,
 
         let conn = Conn::new(input.clone(), output);
         self.conns.insert(conn.clone());
-        let conn = self.conns.get(&conn).unwrap();
     }
 
     pub fn mutate_split_conn(&'genome mut self) {
@@ -68,11 +67,11 @@ impl<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> Genome<'genome,
 
         let mut map = BTreeMap::<_, f32>::new();
 
-        for (node, value) in self.input.iter().zip(inputs.iter()) {
-            for conn in node.conns().iter().filter(|conn| conn.enabled()) {
-                *map.entry(conn.conn_output()).or_default() += (node.bias() + value) * conn.weight();
-            }
-        }
+        // for (node, value) in self.input.iter().zip(inputs.iter()) {
+            // for conn in node.conns().iter().filter(|conn| conn.enabled()) {
+                // *map.entry(conn.conn_output()).or_default() += (node.bias() + value) * conn.weight();
+            // }
+        // }
 
         for (conn, conn_input) in self.conns.iter().filter_map(|conn| {
             conn.conn_input().hidden().map(|conn_input| (conn, conn_input))
