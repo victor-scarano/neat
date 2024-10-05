@@ -1,4 +1,4 @@
-use crate::node::{ConnInput, ConnOutput};
+use crate::node::{Leading, Trailing};
 use std::{cell::{Cell, RefCell}, collections::HashMap};
 
 thread_local! {
@@ -9,8 +9,8 @@ thread_local! {
 pub struct Population;
 
 impl Population {
-    pub fn next_conn_innov(input: ConnInput, output: ConnOutput) -> usize {
-        let key = (input.innov(), output.innov());
+    pub fn next_conn_innov(leading: &Leading, trailing: &Trailing) -> usize {
+        let key = (leading.innov(), trailing.innov());
         CONNS.with(|conns| {
             let mut conns = conns.borrow_mut();
             let next = conns.len();

@@ -1,7 +1,7 @@
 use crate::{node::*, population::Population};
-use std::{cell::Cell, cmp};
+use std::{cell::Cell, cmp, fmt};
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct Output {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
@@ -36,7 +36,7 @@ impl Node for Output {
     }
 }
 
-impl ConnOutputable for Output {
+impl Trailingable for Output {
     fn update_level(&self, level: usize) {
         self.level.update(|current| cmp::max(current, level));
     }
@@ -51,3 +51,14 @@ impl ConnOutputable for Output {
 }
 
 impl Eq for Output {}
+
+impl fmt::Debug for Output {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Output Node")
+            .field("Level", &self.level.get())
+            .field("Response", &self.response)
+            .field("Bias", &self.bias)
+            .field("Innovation", &self.innov)
+            .finish()
+    }
+}

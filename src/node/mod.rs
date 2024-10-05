@@ -1,14 +1,14 @@
-mod conn_input;
-mod conn_output;
 mod input;
 mod hidden;
+mod leading;
 mod output;
+mod trailing;
 
-pub use conn_input::ConnInput;
-pub use conn_output::ConnOutput;
 pub use input::Input;
 pub use hidden::Hidden;
+pub use leading::Leading;
 pub use output::Output;
+pub use trailing::Trailing;
 
 pub trait Node {
     fn level(&self) -> usize;
@@ -16,9 +16,9 @@ pub trait Node {
     fn innov(&self) -> usize;
 }
 
-pub trait ConnInputable {}
+pub trait Leadingable {}
 
-pub trait ConnOutputable {
+pub trait Trailingable {
     fn update_level(&self, level: usize);
     fn activate(&self, x: f32) -> f32;
     fn response(&self) -> f32;

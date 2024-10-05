@@ -1,24 +1,24 @@
 use crate::node::*;
 use std::cmp::Ordering;
 
-#[derive(Eq, Clone, Debug, PartialEq)]
-pub enum ConnOutput<'genome> {
-    Hidden(&'genome Hidden),
-    Output(&'genome Output),
+#[derive(Eq, Copy, Clone, Debug, PartialEq)]
+pub enum Trailing<'g> {
+    Hidden(&'g Hidden),
+    Output(&'g Output),
 }
 
-impl<'genome> ConnOutput<'genome> {
-    pub const fn hidden(&self) -> Option<&'genome Hidden> {
+impl<'g> Trailing<'g> {
+    pub const fn hidden(&self) -> Option<&Hidden> {
         match self {
-            Self::Hidden(hidden) => Some(*hidden),
+            Self::Hidden(hidden) => Some(hidden),
             Self::Output(_) => None,
         }
     }
 
-    pub const fn output(&self) -> Option<&'genome Output> {
+    pub const fn output(&self) -> Option<&Output> {
         match self {
             Self::Hidden(_) => None,
-            Self::Output(output) => Some(*output),
+            Self::Output(output) => Some(output),
         }
     }
 
@@ -30,7 +30,7 @@ impl<'genome> ConnOutput<'genome> {
     }
 }
 
-impl Node for ConnOutput<'_> {
+impl<'g> Node for Trailing<'g> {
     fn level(&self) -> usize {
         match self {
             Self::Hidden(hidden) => hidden.level(),
@@ -53,7 +53,7 @@ impl Node for ConnOutput<'_> {
     }
 }
 
-impl ConnOutputable for ConnOutput<'_> {
+impl<'g> Trailingable for Trailing<'g> {
     fn update_level(&self, level: usize) {
         match self {
             Self::Hidden(hidden) => hidden.update_level(level),
@@ -76,34 +76,34 @@ impl ConnOutputable for ConnOutput<'_> {
     }
 }
 
-impl<'genome> From<&'genome Hidden> for ConnOutput<'genome> {
-    fn from(value: &'genome Hidden) -> Self {
+impl<'g> From<&'g Hidden> for Trailing<'g> {
+    fn from(value: &'g Hidden) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl<'genome> From<&'genome Output> for ConnOutput<'genome> {
-    fn from(value: &'genome Output) -> Self {
+impl<'g> From<&'g Output> for Trailing<'g> {
+    fn from(value: &'g Output) -> Self {
         Self::Output(value)
     }
 }
 
-impl Ord for ConnOutput<'_> {
+impl Ord for Trailing<'_> {
     fn cmp(&self, other: &Self) -> Ordering {
         todo!();
     }
 }
 
-impl<'genome> PartialEq<ConnInput<'genome>> for ConnOutput<'genome> {
-    fn eq(&self, other: &ConnInput<'genome>) -> bool {
+impl<'g> PartialEq<Leading<'g>> for Trailing<'g> {
+    fn eq(&self, other: &Leading) -> bool {
         match (self, other) {
-            (Self::Hidden(lhs), ConnInput::Hidden(rhs)) => lhs == rhs,
+            (Self::Hidden(lhs), Leading::Hidden(rhs)) => lhs == rhs,
             _ => false
         }
     }
 }
 
-impl PartialOrd for ConnOutput<'_> {
+impl PartialOrd for Trailing<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }

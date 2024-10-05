@@ -1,38 +1,37 @@
 use crate::{node::*, population::Population};
-use std::{cell::Cell, cmp::Ordering, hash};
+use std::{cell::Cell, cmp::Ordering, fmt, hash};
 
-#[derive(Clone, Debug)]
-pub struct Conn<'genome> {
-    input: ConnInput<'genome>,
-    output: ConnOutput<'genome>,
+pub struct Conn<'g> {
+    leading: Leading<'g>,
+    trailing: Trailing<'g>,
     level: usize,
     weight: f32,
     enabled: Cell<bool>,
     innov: usize,
 }
 
-impl<'genome> Conn<'genome> {
-    pub fn new(input: ConnInput<'genome>, output: ConnOutput<'genome>) -> Self {
-        assert_ne!(input, output);
+impl<'g> Conn<'g> {
+    pub fn new(leading: &Leading<'g>, trailing: &Trailing<'g>) -> &'g Self {
+        assert_ne!(leading, trailing);
 
-        output.update_level(input.level() + 1);
+        trailing.update_level(leading.level() + 1);
 
-        Self {
-            input: input.clone(),
-            output: output.clone(),
-            level: input.level(),
+        Box::leak(Box::new(Self {
+            leading: *leading,
+            trailing: *trailing,
+            level: leading.level(),
             weight: f32::NAN,
             enabled: true.into(),
-            innov: Population::next_conn_innov(input, output)
-        }
+            innov: Population::next_conn_innov(leading, trailing)
+        }))
     }
 
-    pub fn conn_input(&self) -> ConnInput<'genome> {
-        self.input.clone()
+    pub const fn leading(&self) -> &Leading {
+        &self.leading
     }
 
-    pub fn conn_output(&self) -> ConnOutput<'genome> {
-        self.output.clone()
+    pub const fn trailing(&self) -> &Trailing {
+        &self.trailing
     }
 
     pub const fn level(&self) -> usize {
@@ -56,27 +55,46 @@ impl<'genome> Conn<'genome> {
     }
 }
 
-impl<'genome> Eq for Conn<'genome> {}
+impl Eq for Conn<'_> {}
 
-impl<'genome> hash::Hash for Conn<'genome> {
+impl fmt::Debug for Conn<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Connection")
+            .field("Leading Node", &match self.leading {
+                Leading::Input(input) => (input as *const _) as *const (),
+                Leading::Hidden(hidden) => (hidden as *const _) as *const (),
+            })
+            .field("Trailing Node", &match self.trailing {
+                Trailing::Hidden(hidden) => (hidden as *const _) as *const (),
+                Trailing::Output(output) => (output as *const _) as *const (),
+            })
+            .field("Level", &self.level)
+            .field("Weight", &self.weight)
+            .field("Enabled", &self.enabled.get())
+            .field("Innovation", &self.innov)
+            .finish()
+    }
+}
+
+impl hash::Hash for Conn<'_> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         todo!()
     }
 }
 
-impl<'genome> Ord for Conn<'genome> {
+impl Ord for Conn<'_> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.level.cmp(&other.level)
     }
 }
 
-impl<'genome> PartialEq for Conn<'genome> {
+impl PartialEq for Conn<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.innov == other.innov
     }
 }
 
-impl<'genome> PartialOrd for Conn<'genome> {
+impl PartialOrd for Conn<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }

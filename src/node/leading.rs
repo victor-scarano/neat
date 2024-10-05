@@ -1,24 +1,24 @@
 use crate::node::*;
 use std::ptr;
 
-#[derive(Clone, Debug)]
-pub enum ConnInput<'genome> {
-    Input(&'genome Input),
-    Hidden(&'genome Hidden),
+#[derive(Copy, Clone, Debug)]
+pub enum Leading<'g> {
+    Input(&'g Input),
+    Hidden(&'g Hidden),
 }
 
-impl<'genome> ConnInput<'genome> {
-    pub const fn input(&self) -> Option<&'genome Input> {
+impl<'g> Leading<'g> {
+    pub const fn input(&self) -> Option<&Input> {
         match self {
-            Self::Input(input) => Some(*input),
+            Self::Input(input) => Some(input),
             Self::Hidden(_) => None,
         }
     }
 
-    pub const fn hidden(&self) -> Option<&'genome Hidden> {
+    pub const fn hidden(&self) -> Option<&Hidden> {
         match self {
             Self::Input(_) => None,
-            Self::Hidden(hidden) => Some(*hidden),
+            Self::Hidden(hidden) => Some(hidden),
         }
     }
 
@@ -30,7 +30,7 @@ impl<'genome> ConnInput<'genome> {
     }
 }
 
-impl Node for ConnInput<'_> {
+impl<'g> Node for Leading<'g> {
     fn level(&self) -> usize {
         match self {
             Self::Input(input) => input.level(),
@@ -53,24 +53,24 @@ impl Node for ConnInput<'_> {
     }
 }
 
-impl ConnInputable for ConnInput<'_> {}
+impl Leadingable for Leading<'_> {}
 
-impl<'genome> From<&'genome Input> for ConnInput<'genome> {
-    fn from(value: &'genome Input) -> Self {
+impl<'g> From<&'g Input> for Leading<'g> {
+    fn from(value: &'g Input) -> Self {
         Self::Input(value)
     }
 }
 
-impl<'genome> From<&'genome Hidden> for ConnInput<'genome> {
-    fn from(value: &'genome Hidden) -> Self {
+impl<'g> From<&'g Hidden> for Leading<'g> {
+    fn from(value: &'g Hidden) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl<'genome> PartialEq<ConnOutput<'genome>> for ConnInput<'genome> {
-    fn eq(&self, other: &ConnOutput<'genome>) -> bool {
+impl<'g> PartialEq<Trailing<'g>> for Leading<'g> {
+    fn eq(&self, other: &Trailing<'g>) -> bool {
         match (self, other) {
-            (Self::Hidden(lhs), ConnOutput::Hidden(rhs)) => ptr::eq(*lhs, *rhs),
+            (Self::Hidden(lhs), Trailing::Hidden(rhs)) => ptr::eq(*lhs, *rhs),
             _ => false
         }
     }

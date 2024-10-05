@@ -2,85 +2,61 @@ use crate::{conn::Conn, node::*};
 use std::{array, collections::*, fmt};
 use rand::{Rng, seq::IteratorRandom};
 
-pub struct Genome<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> {
-    conns: BTreeSet<Conn<'genome>>,
-    input: Box<[Input; INPUTS]>,
-    hidden: HashSet<Hidden>,
-    output: Box<[Output; OUTPUTS]>,
+pub struct Genome<'g, const I: usize, const G: usize> {
+    input: &'g [Input; I],
+    hidden: &'g mut HashSet<&'g Hidden>,
+    output: &'g [Output; G],
+    conns: &'g mut BTreeSet<&'g Conn<'g>>,
     fitness: f32,
-    rng: R,
 }
 
-impl<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> Genome<'genome, INPUTS, OUTPUTS, R> {
-    pub fn new(rng: R) -> Self {
+impl<'g, const I: usize, const O: usize> Genome<'g, I, O> {
+    pub fn new() -> Self {
         Self {
-            conns: BTreeSet::new(),
-            input: array::from_fn::<_, INPUTS, _>(|idx| Input::new()).into(),
-            hidden: HashSet::new(),
-            output: array::from_fn::<_, OUTPUTS, _>(|idx| Output::new()).into(),
+            input: Box::leak(Box::new(array::from_fn::<_, I, _>(|_| Input::new()))),
+            hidden: Box::leak(Box::new(HashSet::new())),
+            output: Box::leak(Box::new(array::from_fn::<_, O, _>(|_| Output::new()))),
+            conns: Box::leak(Box::new(BTreeSet::new())),
             fitness: f32::default(),
-            rng,
         }
     }
 
-    pub fn mutate_add_conn(&mut self) {
-        let input: ConnInput = self.input.iter().map(|input| input.into())
-            .chain(self.hidden.iter().map(|hidden| hidden.into()))
-            .choose(&mut self.rng).unwrap();
+    pub fn mutate_add_conn(&mut self, rng: &mut impl Rng) {
+        let input = self.input.iter().map(Leading::from)
+            .chain(self.hidden.iter().cloned().map(Leading::from))
+            .choose(rng).unwrap();
 
-        let output = self.hidden.iter().map(|hidden| hidden.into())
-            .chain(self.output.iter().map(|output| output.into()))
+        let output = self.hidden.iter().cloned().map(Trailing::from)
+            .chain(self.output.iter().map(Trailing::from))
             .filter(|node| *node != input)
-            .choose(&mut self.rng).unwrap();
+            .choose(rng).unwrap();
 
-        let conn = Conn::new(input.clone(), output);
-        self.conns.insert(conn.clone());
+        let conn = Conn::new(&input, &output);
+        self.conns.insert(conn);
     }
 
-    pub fn mutate_split_conn(&'genome mut self) {
-        let conn = self.conns.iter()
-            .filter(|conn| conn.enabled())
-            .choose(&mut self.rng).unwrap();
+    pub fn mutate_split_conn(&mut self, rng: &mut impl Rng) {
+        let conn = self.conns.iter().filter(|conn| conn.enabled()).choose(rng).unwrap();
         conn.disable();
 
-        let node = Hidden::new(conn);
-        self.hidden.insert(node.clone());
-        let middle = self.hidden.get(&node).unwrap();
+        let middle = Hidden::new(conn);
+        self.hidden.insert(middle);
+        let middle = self.hidden.get(&middle).unwrap();
 
-        let initial = Conn::new(conn.conn_input(), middle.into());
-        let r#final = Conn::new(middle.into(), conn.conn_output());
+        let initial = Conn::new(conn.leading(), &Trailing::from(*middle));
+        let r#final = Conn::new(&Leading::from(*middle), conn.trailing());
 
-        self.conns.insert(initial.clone());
-        let initial = self.conns.get(&initial).unwrap();
-
-        self.conns.insert(r#final.clone());
-        let r#final = self.conns.get(&r#final).unwrap();
+        self.conns.insert(initial);
+        self.conns.insert(r#final);
     }
 
     pub fn mutate_weight(&mut self) {
         todo!();
     }
 
-    pub fn activate(&self, inputs: [f32; INPUTS]) -> [f32; OUTPUTS] {
+    pub fn activate(&self, inputs: [f32; I]) -> [f32; O] {
         // activation(bias + (response * aggregation(inputs)))
         // input nodes have: activation=identity, response=1, agreggation=none
-
-        let mut map = BTreeMap::<_, f32>::new();
-
-        // for (node, value) in self.input.iter().zip(inputs.iter()) {
-            // for conn in node.conns().iter().filter(|conn| conn.enabled()) {
-                // *map.entry(conn.conn_output()).or_default() += (node.bias() + value) * conn.weight();
-            // }
-        // }
-
-        for (conn, conn_input) in self.conns.iter().filter_map(|conn| {
-            conn.conn_input().hidden().map(|conn_input| (conn, conn_input))
-        }) {
-            let aggregated = map.get(&conn_input.into()).unwrap();
-            *map.entry(conn.conn_output()).or_default() += 
-                conn_input.activate(conn_input.bias() + (conn_input.response() * aggregated));
-        }
-
         todo!();
     }
 
@@ -93,10 +69,30 @@ impl<'genome, const INPUTS: usize, const OUTPUTS: usize, R: Rng> Genome<'genome,
     }
 }
 
-impl<const INPUTS: usize, const OUTPUTS: usize, R: Rng> fmt::Debug for Genome<'_, INPUTS, OUTPUTS, R> {
+impl<const I: usize, const G: usize> fmt::Debug for Genome<'_, I, G> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Genome")
-            .field_with("Conns", |f| f.debug_list().entries(self.conns.iter()).finish())
+            .field_with("Connections", |f| {
+                f.debug_list()
+                    .entries(self.conns.iter())
+                    .finish()
+            })
+            .field_with("Input Nodes", |f| {
+                f.debug_map()   
+                    .entries(self.input.iter().map(|input| (input as *const _, input)))
+                    .finish()
+            })
+            .field_with("Hidden Nodes", |f| {
+                f.debug_map()   
+                    .entries(self.hidden.iter().map(|hidden| (*hidden as *const _, hidden)))
+                    .finish()
+            })
+            .field_with("Output Nodes", |f| {
+                f.debug_map()
+                    .entries(self.output.iter().map(|output| (output as *const _, output)))
+                    .finish()
+            })
+            .field("Fitness", &self.fitness)
             .finish()
     }
 }

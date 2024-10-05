@@ -1,6 +1,6 @@
 use crate::{node::*, population::Population};
+use std::fmt;
 
-#[derive(Debug)]
 pub struct Input {
     bias: f32,
     innov: usize,
@@ -29,4 +29,13 @@ impl Node for Input {
     }
 }
 
-impl ConnInputable for Input {}
+impl Leadingable for Input {}
+
+impl fmt::Debug for Input {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Input Node")
+            .field("Bias", &self.bias)
+            .field("Innovation", &self.innov)
+            .finish()
+    }
+}
