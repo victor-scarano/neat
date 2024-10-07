@@ -15,7 +15,7 @@ mod tests {
     #[test]
     fn it_works() {
         let mut rng = StepRng::new(0, 1);
-        let mut genome = Genome::<1, 3>::new();
+        let mut genome = Genome::<1, 1>::new();
         dbg!(&genome);
         genome.mutate_add_conn(&mut rng);
         dbg!(&genome);

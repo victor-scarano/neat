@@ -3,30 +3,30 @@ use std::{array, collections::*, fmt};
 use rand::{Rng, seq::IteratorRandom};
 
 pub struct Genome<'g, const I: usize, const G: usize> {
-    input: &'g [Input; I],
-    hidden: &'g mut HashSet<&'g Hidden>,
-    output: &'g [Output; G],
-    conns: &'g mut BTreeSet<&'g Conn<'g>>,
+    input: [Input; I],
+    hidden: HashSet<Hidden>,
+    output: [Output; G],
+    conns: BTreeSet<Conn<'g>>,
     fitness: f32,
 }
 
 impl<'g, const I: usize, const O: usize> Genome<'g, I, O> {
     pub fn new() -> Self {
         Self {
-            input: Box::leak(Box::new(array::from_fn::<_, I, _>(|_| Input::new()))),
-            hidden: Box::leak(Box::new(HashSet::new())),
-            output: Box::leak(Box::new(array::from_fn::<_, O, _>(|_| Output::new()))),
-            conns: Box::leak(Box::new(BTreeSet::new())),
+            input: array::from_fn::<_, I, _>(|_| Input::new()),
+            hidden: HashSet::new(),
+            output: array::from_fn::<_, O, _>(|_| Output::new()),
+            conns: BTreeSet::new(),
             fitness: f32::default(),
         }
     }
 
     pub fn mutate_add_conn(&mut self, rng: &mut impl Rng) {
         let input = self.input.iter().map(Leading::from)
-            .chain(self.hidden.iter().cloned().map(Leading::from))
+            .chain(self.hidden.iter().map(Leading::from))
             .choose(rng).unwrap();
 
-        let output = self.hidden.iter().cloned().map(Trailing::from)
+        let output = self.hidden.iter().map(Trailing::from)
             .chain(self.output.iter().map(Trailing::from))
             .filter(|node| *node != input)
             .choose(rng).unwrap();
@@ -40,13 +40,13 @@ impl<'g, const I: usize, const O: usize> Genome<'g, I, O> {
         conn.disable();
 
         let middle = Hidden::new(conn);
-        self.hidden.insert(middle);
+        self.hidden.insert(middle.clone());
         let middle = self.hidden.get(&middle).unwrap();
 
-        let initial = Conn::new(conn.leading(), &Trailing::from(*middle));
-        let r#final = Conn::new(&Leading::from(*middle), conn.trailing());
-
+        let initial = Conn::new(conn.leading(), &Trailing::from(middle));
         self.conns.insert(initial);
+
+        let r#final = Conn::new(&Leading::from(middle), conn.trailing());
         self.conns.insert(r#final);
     }
 

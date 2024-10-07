@@ -1,7 +1,7 @@
 use crate::{conn::Conn, node::*, population::Population};
 use std::{cell::Cell, cmp, fmt, hash};
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Hidden {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
@@ -11,17 +11,17 @@ pub struct Hidden {
 }
 
 impl Hidden {
-    pub fn new<'g>(conn: &Conn) -> &'g Self {
+    pub fn new<'g>(conn: &Conn) -> Self {
         let curr_level = conn.leading().level();
         conn.trailing().update_level(curr_level + 1);
 
-        Box::leak(Box::new(Self {
+        Self {
             level: Cell::new(curr_level),
             activation: Cell::new(|_| f32::NAN),
             response: f32::NAN,
             bias: f32::NAN,
             innov: Population::next_node_innov(),
-        }))
+        }
     }
 }
 

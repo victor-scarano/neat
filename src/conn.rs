@@ -11,19 +11,17 @@ pub struct Conn<'g> {
 }
 
 impl<'g> Conn<'g> {
-    pub fn new(leading: &Leading<'g>, trailing: &Trailing<'g>) -> &'g Self {
+    pub fn new(leading: &Leading<'g>, trailing: &Trailing<'g>) -> Self {
         assert_ne!(leading, trailing);
-
         trailing.update_level(leading.level() + 1);
-
-        Box::leak(Box::new(Self {
+        Self {
             leading: *leading,
             trailing: *trailing,
             level: leading.level(),
             weight: f32::NAN,
             enabled: true.into(),
             innov: Population::next_conn_innov(leading, trailing)
-        }))
+        }
     }
 
     pub const fn leading(&self) -> &Leading {
