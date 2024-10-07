@@ -1,4 +1,4 @@
-#![feature(cell_update, debug_closure_helpers)]
+#![feature(cell_update, debug_closure_helpers, hash_set_entry)]
 #![warn(clippy::missing_const_for_fn, missing_copy_implementations, missing_debug_implementations)]
 #![allow(dead_code, clippy::mutable_key_type, unused_variables)]
 

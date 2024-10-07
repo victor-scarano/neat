@@ -1,13 +1,27 @@
 use crate::node::*;
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ptr::NonNull};
 
-#[derive(Eq, Copy, Clone, Debug, PartialEq)]
-pub enum Trailing<'g> {
-    Hidden(&'g Hidden),
-    Output(&'g Output),
+pub enum UnsafeTrailing {
+    Hidden(NonNull<Hidden>),
+    Output(NonNull<Output>),
 }
 
-impl<'g> Trailing<'g> {
+impl<'a> From<Trailing<'a>> for UnsafeTrailing {
+    fn from(value: Trailing<'a>) -> Self {
+        match value {
+            Trailing::Hidden(hidden) => UnsafeTrailing::Hidden(NonNull::from(hidden)),
+            Trailing::Output(output) => UnsafeTrailing::Output(NonNull::from(output)),
+        }
+    }
+}
+
+#[derive(Eq, Copy, Clone, Debug, PartialEq)]
+pub enum Trailing<'a> {
+    Hidden(&'a Hidden),
+    Output(&'a Output),
+}
+
+impl<'a> Trailing<'a> {
     pub const fn hidden(&self) -> Option<&Hidden> {
         match self {
             Self::Hidden(hidden) => Some(hidden),
@@ -30,7 +44,7 @@ impl<'g> Trailing<'g> {
     }
 }
 
-impl<'g> Node for Trailing<'g> {
+impl<'a> Node for Trailing<'a> {
     fn level(&self) -> usize {
         match self {
             Self::Hidden(hidden) => hidden.level(),
@@ -53,7 +67,7 @@ impl<'g> Node for Trailing<'g> {
     }
 }
 
-impl<'g> Trailingable for Trailing<'g> {
+impl<'a> Trailingable for Trailing<'a> {
     fn update_level(&self, level: usize) {
         match self {
             Self::Hidden(hidden) => hidden.update_level(level),
@@ -76,14 +90,23 @@ impl<'g> Trailingable for Trailing<'g> {
     }
 }
 
-impl<'g> From<&'g Hidden> for Trailing<'g> {
-    fn from(value: &'g Hidden) -> Self {
+impl<'a> From<&UnsafeTrailing> for Trailing<'a> {
+    fn from(value: &UnsafeTrailing) -> Self {
+        match value {
+            UnsafeTrailing::Hidden(hidden) => Trailing::Hidden(unsafe { hidden.as_ref() }),
+            UnsafeTrailing::Output(output) => Trailing::Output(unsafe { output.as_ref() }),
+        }
+    }
+}
+
+impl<'a> From<&'a Hidden> for Trailing<'a> {
+    fn from(value: &'a Hidden) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl<'g> From<&'g Output> for Trailing<'g> {
-    fn from(value: &'g Output) -> Self {
+impl<'a> From<&'a Output> for Trailing<'a> {
+    fn from(value: &'a Output) -> Self {
         Self::Output(value)
     }
 }
@@ -94,7 +117,7 @@ impl Ord for Trailing<'_> {
     }
 }
 
-impl<'g> PartialEq<Leading<'g>> for Trailing<'g> {
+impl<'a> PartialEq<Leading<'a>> for Trailing<'a> {
     fn eq(&self, other: &Leading) -> bool {
         match (self, other) {
             (Self::Hidden(lhs), Leading::Hidden(rhs)) => lhs == rhs,

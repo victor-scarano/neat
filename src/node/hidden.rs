@@ -1,7 +1,7 @@
 use crate::{conn::Conn, node::*, population::Population};
 use std::{cell::Cell, cmp, fmt, hash};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct Hidden {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
@@ -11,7 +11,7 @@ pub struct Hidden {
 }
 
 impl Hidden {
-    pub fn new<'g>(conn: &Conn) -> Self {
+    pub fn new(conn: &Conn) -> Self {
         let curr_level = conn.leading().level();
         conn.trailing().update_level(curr_level + 1);
 
@@ -70,6 +70,18 @@ impl fmt::Debug for Hidden {
 
 impl hash::Hash for Hidden {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        todo!()
+        // self.level.get().hash(state);
+        // self.activation.get().hash(state);
+        self.response.to_bits().hash(state);
+        self.bias.to_bits().hash(state);
+        self.innov.hash(state);
+    }
+}
+
+impl PartialEq for Hidden {
+    fn eq(&self, other: &Self) -> bool {
+        self.response == other.response &&
+            self.bias == other.bias &&
+            self.innov == other.innov
     }
 }

@@ -1,35 +1,35 @@
 use crate::{node::*, population::Population};
 use std::{cell::Cell, cmp::Ordering, fmt, hash};
 
-pub struct Conn<'g> {
-    leading: Leading<'g>,
-    trailing: Trailing<'g>,
+pub struct Conn {
+    pub leading: UnsafeLeading,
+    pub trailing: UnsafeTrailing,
     level: usize,
     weight: f32,
     enabled: Cell<bool>,
     innov: usize,
 }
 
-impl<'g> Conn<'g> {
-    pub fn new(leading: &Leading<'g>, trailing: &Trailing<'g>) -> Self {
+impl Conn {
+    pub fn new(leading: Leading, trailing: Trailing) -> Self {
         assert_ne!(leading, trailing);
         trailing.update_level(leading.level() + 1);
         Self {
-            leading: *leading,
-            trailing: *trailing,
+            leading: UnsafeLeading::from(leading),
+            trailing: UnsafeTrailing::from(trailing),
             level: leading.level(),
             weight: f32::NAN,
             enabled: true.into(),
-            innov: Population::next_conn_innov(leading, trailing)
+            innov: Population::next_conn_innov(&leading, &trailing)
         }
     }
 
-    pub const fn leading(&self) -> &Leading {
-        &self.leading
+    pub fn leading(&self) -> Leading {
+        Leading::from(&self.leading)
     }
 
-    pub const fn trailing(&self) -> &Trailing {
-        &self.trailing
+    pub fn trailing(&self) -> Trailing {
+        Trailing::from(&self.trailing)
     }
 
     pub const fn level(&self) -> usize {
@@ -53,16 +53,16 @@ impl<'g> Conn<'g> {
     }
 }
 
-impl Eq for Conn<'_> {}
+impl Eq for Conn {}
 
-impl fmt::Debug for Conn<'_> {
+impl fmt::Debug for Conn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection")
-            .field("Leading Node", &match self.leading {
+            .field("Leading Node", &match Leading::from(&self.leading) {
                 Leading::Input(input) => (input as *const _) as *const (),
                 Leading::Hidden(hidden) => (hidden as *const _) as *const (),
             })
-            .field("Trailing Node", &match self.trailing {
+            .field("Trailing Node", &match Trailing::from(&self.trailing) {
                 Trailing::Hidden(hidden) => (hidden as *const _) as *const (),
                 Trailing::Output(output) => (output as *const _) as *const (),
             })
@@ -74,25 +74,25 @@ impl fmt::Debug for Conn<'_> {
     }
 }
 
-impl hash::Hash for Conn<'_> {
+impl hash::Hash for Conn {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         todo!()
     }
 }
 
-impl Ord for Conn<'_> {
+impl Ord for Conn {
     fn cmp(&self, other: &Self) -> Ordering {
         self.level.cmp(&other.level)
     }
 }
 
-impl PartialEq for Conn<'_> {
+impl PartialEq for Conn {
     fn eq(&self, other: &Self) -> bool {
         self.innov == other.innov
     }
 }
 
-impl PartialOrd for Conn<'_> {
+impl PartialOrd for Conn {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
