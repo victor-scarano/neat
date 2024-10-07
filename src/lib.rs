@@ -14,12 +14,13 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut rng = StepRng::new(0, 1);
-        let mut genome = Genome::<1, 1>::new();
-        dbg!(&genome);
-        genome.mutate_add_conn(&mut rng);
-        dbg!(&genome);
-        genome.mutate_split_conn(&mut rng);
-        dbg!(&genome);
+        for step in 1..=213 {
+            println!("Running step {}...", step);
+            let mut rng = StepRng::new(0, step);
+            let mut genome = Genome::<1, 1>::new();
+            genome.mutate_add_conn(&mut rng);
+            genome.mutate_split_conn(&mut rng);
+            println!("Finished running step {}", step);
+        }
     }
 }

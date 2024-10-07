@@ -1,6 +1,7 @@
 use crate::node::*;
-use std::{cmp::Ordering, ptr::NonNull};
+use std::{cmp::Ordering, pin::Pin, ptr::NonNull};
 
+// not sure if `NonNull` should be `Pin<NonNull>`, but if it is, it's really hard to work with
 pub enum UnsafeTrailing {
     Hidden(NonNull<Hidden>),
     Output(NonNull<Output>),
@@ -9,30 +10,30 @@ pub enum UnsafeTrailing {
 impl<'a> From<Trailing<'a>> for UnsafeTrailing {
     fn from(value: Trailing<'a>) -> Self {
         match value {
-            Trailing::Hidden(hidden) => UnsafeTrailing::Hidden(NonNull::from(hidden)),
-            Trailing::Output(output) => UnsafeTrailing::Output(NonNull::from(output)),
+            Trailing::Hidden(hidden) => UnsafeTrailing::Hidden(NonNull::from(hidden.get_ref())),
+            Trailing::Output(output) => UnsafeTrailing::Output(NonNull::from(output.get_ref())),
         }
     }
 }
 
 #[derive(Eq, Copy, Clone, Debug, PartialEq)]
 pub enum Trailing<'a> {
-    Hidden(&'a Hidden),
-    Output(&'a Output),
+    Hidden(Pin<&'a Hidden>),
+    Output(Pin<&'a Output>),
 }
 
 impl<'a> Trailing<'a> {
-    pub const fn hidden(&self) -> Option<&Hidden> {
+    pub const fn hidden(&self) -> Option<Pin<&Hidden>> {
         match self {
-            Self::Hidden(hidden) => Some(hidden),
+            Self::Hidden(hidden) => Some(*hidden),
             Self::Output(_) => None,
         }
     }
 
-    pub const fn output(&self) -> Option<&Output> {
+    pub const fn output(&self) -> Option<Pin<&Output>> {
         match self {
             Self::Hidden(_) => None,
-            Self::Output(output) => Some(output),
+            Self::Output(output) => Some(*output),
         }
     }
 
@@ -93,21 +94,21 @@ impl<'a> Trailingable for Trailing<'a> {
 impl<'a> From<&UnsafeTrailing> for Trailing<'a> {
     fn from(value: &UnsafeTrailing) -> Self {
         match value {
-            UnsafeTrailing::Hidden(hidden) => Trailing::Hidden(unsafe { hidden.as_ref() }),
-            UnsafeTrailing::Output(output) => Trailing::Output(unsafe { output.as_ref() }),
+            UnsafeTrailing::Hidden(hidden) => Trailing::Hidden(unsafe { Pin::new(hidden.as_ref()) }),
+            UnsafeTrailing::Output(output) => Trailing::Output(unsafe { Pin::new(output.as_ref()) }),
         }
     }
 }
 
-impl<'a> From<&'a Hidden> for Trailing<'a> {
-    fn from(value: &'a Hidden) -> Self {
+impl<'a> From<Pin<&'a Hidden>> for Trailing<'a> {
+    fn from(value: Pin<&'a Hidden>) -> Self {
         Self::Hidden(value)
     }
 }
 
 impl<'a> From<&'a Output> for Trailing<'a> {
     fn from(value: &'a Output) -> Self {
-        Self::Output(value)
+        Self::Output(Pin::new(value))
     }
 }
 

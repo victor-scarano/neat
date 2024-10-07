@@ -1,5 +1,5 @@
 use crate::{conn::Conn, node::*, population::Population};
-use std::{cell::Cell, cmp, fmt, hash};
+use std::{cell::Cell, cmp, fmt, hash, pin::Pin};
 
 #[derive(Clone)]
 pub struct Hidden {
@@ -11,17 +11,17 @@ pub struct Hidden {
 }
 
 impl Hidden {
-    pub fn new(conn: &Conn) -> Self {
+    pub fn new(conn: &Conn) -> Pin<Box<Self>> {
         let curr_level = conn.leading().level();
         conn.trailing().update_level(curr_level + 1);
 
-        Self {
+        Box::into_pin(Box::new(Self {
             level: Cell::new(curr_level),
             activation: Cell::new(|_| f32::NAN),
             response: f32::NAN,
             bias: f32::NAN,
             innov: Population::next_node_innov(),
-        }
+        }))
     }
 }
 

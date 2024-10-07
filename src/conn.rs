@@ -58,13 +58,13 @@ impl Eq for Conn {}
 impl fmt::Debug for Conn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection")
-            .field("Leading Node", &match Leading::from(&self.leading) {
-                Leading::Input(input) => (input as *const _) as *const (),
-                Leading::Hidden(hidden) => (hidden as *const _) as *const (),
+            .field_with("Leading Node", |f| match self.leading {
+                UnsafeLeading::Input(input) => fmt::Pointer::fmt(&input, f),
+                UnsafeLeading::Hidden(hidden) => fmt::Pointer::fmt(&hidden, f)
             })
-            .field("Trailing Node", &match Trailing::from(&self.trailing) {
-                Trailing::Hidden(hidden) => (hidden as *const _) as *const (),
-                Trailing::Output(output) => (output as *const _) as *const (),
+            .field_with("Trailing Node", |f| match self.trailing {
+                UnsafeTrailing::Hidden(hidden) => fmt::Pointer::fmt(&hidden, f),
+                UnsafeTrailing::Output(output) => fmt::Pointer::fmt(&output, f),
             })
             .field("Level", &self.level)
             .field("Weight", &self.weight)
