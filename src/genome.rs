@@ -16,6 +16,9 @@ pub struct Genome<const I: usize, const O: usize> {
 
 impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn new() -> Self {
+        assert_ne!(I, 0);
+        assert_ne!(O, 0);
+
         Self {
             input: Box::new(array::from_fn::<_, I, _>(|_| Input::new())),
             hidden: HashSet::new(),
@@ -39,6 +42,8 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     }
 
     pub fn mutate_split_conn(&mut self, rng: &mut impl Rng) {
+        assert_ne!(self.conns.len(), 0);
+
         let conn = self.conns.iter().filter(|conn| conn.enabled()).choose(rng).unwrap();
         conn.disable();
 
