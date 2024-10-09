@@ -6,9 +6,9 @@ mod trailing;
 
 pub use input::Input;
 pub use hidden::Hidden;
-pub use leading::{Leading, UnsafeLeading};
+pub use leading::Leading;
 pub use output::Output;
-pub use trailing::{Trailing, UnsafeTrailing};
+pub use trailing::Trailing;
 
 pub trait Node {
     fn level(&self) -> usize;

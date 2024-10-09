@@ -1,39 +1,27 @@
+extern crate alloc;
+
 use crate::node::*;
-use std::{pin::Pin, ptr::{self, NonNull}};
+use core::ptr;
+use alloc::rc::Rc;
 
-// not sure if `NonNull` should be `Pin<NonNull>`, but if it is, it's really hard to work with
-pub enum UnsafeLeading {
-    Input(NonNull<Input>),
-    Hidden(NonNull<Hidden>),
+#[derive(Clone, Debug)]
+pub enum Leading {
+    Input(Rc<Input>),
+    Hidden(Rc<Hidden>),
 }
 
-impl<'a> From<Leading<'a>> for UnsafeLeading {
-    fn from(value: Leading<'a>) -> Self {
-        match value {
-            Leading::Input(input) => UnsafeLeading::Input(NonNull::from(input.get_ref())),
-            Leading::Hidden(hidden) => UnsafeLeading::Hidden(NonNull::from(hidden.get_ref()))
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum Leading<'a> {
-    Input(Pin<&'a Input>),
-    Hidden(Pin<&'a Hidden>),
-}
-
-impl<'a> Leading<'a> {
-    pub const fn input(&self) -> Option<Pin<&Input>> {
+impl Leading {
+    pub fn input(&self) -> Option<Rc<Input>> {
         match self {
-            Self::Input(input) => Some(*input),
+            Self::Input(input) => Some(input.clone()),
             Self::Hidden(_) => None,
         }
     }
 
-    pub const fn hidden(&self) -> Option<Pin<&Hidden>> {
+    pub fn hidden(&self) -> Option<Rc<Hidden>> {
         match self {
             Self::Input(_) => None,
-            Self::Hidden(hidden) => Some(*hidden),
+            Self::Hidden(hidden) => Some(hidden.clone()),
         }
     }
 
@@ -45,7 +33,7 @@ impl<'a> Leading<'a> {
     }
 }
 
-impl<'a> Node for Leading<'a> {
+impl Node for Leading {
     fn level(&self) -> usize {
         match self {
             Self::Input(input) => input.level(),
@@ -68,31 +56,22 @@ impl<'a> Node for Leading<'a> {
     }
 }
 
-impl Leadingable for Leading<'_> {}
+impl Leadingable for Leading {}
 
-impl<'a> From<&UnsafeLeading> for Leading<'a> {
-    fn from(value: &UnsafeLeading) -> Self {
-        match value {
-            UnsafeLeading::Input(input) => Leading::Input(unsafe { Pin::new(input.as_ref()) }),
-            UnsafeLeading::Hidden(hidden) => Leading::Hidden(unsafe { Pin::new(hidden.as_ref()) })
-        }
+impl From<&Rc<Input>> for Leading {
+    fn from(value: &Rc<Input>) -> Self {
+        Self::Input(value.clone())
     }
 }
 
-impl<'a> From<&'a Input> for Leading<'a> {
-    fn from(value: &'a Input) -> Self {
-        Self::Input(Pin::new(value))
+impl From<&Rc<Hidden>> for Leading {
+    fn from(value: &Rc<Hidden>) -> Self {
+        Self::Hidden(value.clone())
     }
 }
 
-impl<'a> From<Pin<&'a Hidden>> for Leading<'a> {
-    fn from(value: Pin<&'a Hidden>) -> Self {
-        Self::Hidden(value)
-    }
-}
-
-impl<'a> PartialEq<Trailing<'a>> for Leading<'a> {
-    fn eq(&self, other: &Trailing<'a>) -> bool {
+impl PartialEq<Trailing> for Leading {
+    fn eq(&self, other: &Trailing) -> bool {
         match (self, other) {
             (Self::Hidden(lhs), Trailing::Hidden(rhs)) => ptr::eq(lhs, rhs),
             _ => false

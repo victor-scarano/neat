@@ -1,9 +1,9 @@
-use crate::{node::*, population::Population};
-use std::{cell::Cell, cmp::Ordering, fmt, hash};
+use crate::{node::*, pop::Pop};
+use core::{cell::Cell, cmp::Ordering, fmt, hash};
 
 pub struct Conn {
-    pub leading: UnsafeLeading,
-    pub trailing: UnsafeTrailing,
+    pub leading: Leading,
+    pub trailing: Trailing,
     level: usize,
     weight: f32,
     enabled: Cell<bool>,
@@ -13,23 +13,25 @@ pub struct Conn {
 impl Conn {
     pub fn new(leading: Leading, trailing: Trailing) -> Self {
         assert_ne!(leading, trailing);
+
         trailing.update_level(leading.level() + 1);
+
         Self {
-            leading: UnsafeLeading::from(leading),
-            trailing: UnsafeTrailing::from(trailing),
+            leading: leading.clone(),
+            trailing: trailing.clone(),
             level: leading.level(),
             weight: f32::NAN,
             enabled: true.into(),
-            innov: Population::next_conn_innov(&leading, &trailing)
+            innov: Pop::next_conn_innov(&leading, &trailing)
         }
     }
 
     pub fn leading(&self) -> Leading {
-        Leading::from(&self.leading)
+        self.leading.clone()
     }
 
     pub fn trailing(&self) -> Trailing {
-        Trailing::from(&self.trailing)
+        self.trailing.clone()
     }
 
     pub const fn level(&self) -> usize {
@@ -58,13 +60,13 @@ impl Eq for Conn {}
 impl fmt::Debug for Conn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection")
-            .field_with("Leading Node", |f| match self.leading {
-                UnsafeLeading::Input(input) => fmt::Pointer::fmt(&input, f),
-                UnsafeLeading::Hidden(hidden) => fmt::Pointer::fmt(&hidden, f)
+            .field_with("Leading Node", |f| match &self.leading {
+                Leading::Input(input) => fmt::Pointer::fmt(&input, f),
+                Leading::Hidden(hidden) => fmt::Pointer::fmt(&hidden, f)
             })
-            .field_with("Trailing Node", |f| match self.trailing {
-                UnsafeTrailing::Hidden(hidden) => fmt::Pointer::fmt(&hidden, f),
-                UnsafeTrailing::Output(output) => fmt::Pointer::fmt(&output, f),
+            .field_with("Trailing Node", |f| match &self.trailing {
+                Trailing::Hidden(hidden) => fmt::Pointer::fmt(&hidden, f),
+                Trailing::Output(output) => fmt::Pointer::fmt(&output, f),
             })
             .field("Level", &self.level)
             .field("Weight", &self.weight)

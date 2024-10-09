@@ -1,5 +1,8 @@
-use crate::{node::*, population::Population};
-use std::fmt;
+extern crate alloc;
+
+use crate::{node::*, pop::Pop};
+use core::fmt;
+use alloc::rc::Rc;
 
 pub struct Input {
     bias: f32,
@@ -7,11 +10,11 @@ pub struct Input {
 }
 
 impl Input {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Rc<Self> {
+        Rc::new(Self {
             bias: f32::NAN,
-            innov: Population::next_node_innov(),
-        }
+            innov: Pop::next_node_innov(),
+        })
     }
 }
 

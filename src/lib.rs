@@ -1,11 +1,11 @@
-#![feature(cell_update, debug_closure_helpers, hash_set_entry)]
-#![warn(clippy::missing_const_for_fn, missing_copy_implementations, missing_debug_implementations)]
+#![cfg_attr(not(test), no_std)]
+#![feature(cell_update, debug_closure_helpers, thread_local)]
 #![allow(dead_code, clippy::mutable_key_type, unused_variables)]
 
 mod conn;
 mod genome;
 mod node;
-mod population;
+mod pop;
 
 #[cfg(test)]
 mod tests {
@@ -13,14 +13,16 @@ mod tests {
     use rand::rngs::mock::StepRng;
 
     #[test]
-    fn it_works() {
-        for step in 1..=213 {
-            println!("Running step {}...", step);
-            let mut rng = StepRng::new(0, step);
-            let mut genome = Genome::<1, 1>::new();
-            genome.mutate_add_conn(&mut rng);
-            genome.mutate_split_conn(&mut rng);
-            println!("Finished running step {}", step);
-        }
+    fn mutate_add_conn() {
+        let mut rng = StepRng::new(0, 1);
+        let mut genome = Genome::<1, 1>::new();
+        genome.mutate_add_conn(&mut rng);
+    }
+
+    #[test]
+    fn mutate_split_conn() {
+        let mut rng = StepRng::new(0, 1);
+        let mut genome = Genome::<1, 1>::new();
+        genome.mutate_split_conn(&mut rng);
     }
 }

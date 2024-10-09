@@ -1,39 +1,27 @@
+extern crate alloc;
+
 use crate::node::*;
-use std::{cmp::Ordering, pin::Pin, ptr::NonNull};
+use core::cmp::Ordering;
+use alloc::rc::Rc;
 
-// not sure if `NonNull` should be `Pin<NonNull>`, but if it is, it's really hard to work with
-pub enum UnsafeTrailing {
-    Hidden(NonNull<Hidden>),
-    Output(NonNull<Output>),
+#[derive(Eq, Clone, Debug, PartialEq)]
+pub enum Trailing {
+    Hidden(Rc<Hidden>),
+    Output(Rc<Output>),
 }
 
-impl<'a> From<Trailing<'a>> for UnsafeTrailing {
-    fn from(value: Trailing<'a>) -> Self {
-        match value {
-            Trailing::Hidden(hidden) => UnsafeTrailing::Hidden(NonNull::from(hidden.get_ref())),
-            Trailing::Output(output) => UnsafeTrailing::Output(NonNull::from(output.get_ref())),
-        }
-    }
-}
-
-#[derive(Eq, Copy, Clone, Debug, PartialEq)]
-pub enum Trailing<'a> {
-    Hidden(Pin<&'a Hidden>),
-    Output(Pin<&'a Output>),
-}
-
-impl<'a> Trailing<'a> {
-    pub const fn hidden(&self) -> Option<Pin<&Hidden>> {
+impl Trailing {
+    pub fn hidden(&self) -> Option<Rc<Hidden>> {
         match self {
-            Self::Hidden(hidden) => Some(*hidden),
+            Self::Hidden(hidden) => Some(hidden.clone()),
             Self::Output(_) => None,
         }
     }
 
-    pub const fn output(&self) -> Option<Pin<&Output>> {
+    pub fn output(&self) -> Option<Rc<Output>> {
         match self {
             Self::Hidden(_) => None,
-            Self::Output(output) => Some(*output),
+            Self::Output(output) => Some(output.clone()),
         }
     }
 
@@ -45,7 +33,7 @@ impl<'a> Trailing<'a> {
     }
 }
 
-impl<'a> Node for Trailing<'a> {
+impl Node for Trailing {
     fn level(&self) -> usize {
         match self {
             Self::Hidden(hidden) => hidden.level(),
@@ -68,7 +56,7 @@ impl<'a> Node for Trailing<'a> {
     }
 }
 
-impl<'a> Trailingable for Trailing<'a> {
+impl Trailingable for Trailing {
     fn update_level(&self, level: usize) {
         match self {
             Self::Hidden(hidden) => hidden.update_level(level),
@@ -91,34 +79,25 @@ impl<'a> Trailingable for Trailing<'a> {
     }
 }
 
-impl<'a> From<&UnsafeTrailing> for Trailing<'a> {
-    fn from(value: &UnsafeTrailing) -> Self {
-        match value {
-            UnsafeTrailing::Hidden(hidden) => Trailing::Hidden(unsafe { Pin::new(hidden.as_ref()) }),
-            UnsafeTrailing::Output(output) => Trailing::Output(unsafe { Pin::new(output.as_ref()) }),
-        }
+impl From<&Rc<Hidden>> for Trailing {
+    fn from(value: &Rc<Hidden>) -> Self {
+        Self::Hidden(value.clone())
     }
 }
 
-impl<'a> From<Pin<&'a Hidden>> for Trailing<'a> {
-    fn from(value: Pin<&'a Hidden>) -> Self {
-        Self::Hidden(value)
+impl From<&Rc<Output>> for Trailing {
+    fn from(value: &Rc<Output>) -> Self {
+        Self::Output(value.clone())
     }
 }
 
-impl<'a> From<&'a Output> for Trailing<'a> {
-    fn from(value: &'a Output) -> Self {
-        Self::Output(Pin::new(value))
-    }
-}
-
-impl Ord for Trailing<'_> {
+impl Ord for Trailing {
     fn cmp(&self, other: &Self) -> Ordering {
         todo!();
     }
 }
 
-impl<'a> PartialEq<Leading<'a>> for Trailing<'a> {
+impl PartialEq<Leading> for Trailing {
     fn eq(&self, other: &Leading) -> bool {
         match (self, other) {
             (Self::Hidden(lhs), Leading::Hidden(rhs)) => lhs == rhs,
@@ -127,7 +106,7 @@ impl<'a> PartialEq<Leading<'a>> for Trailing<'a> {
     }
 }
 
-impl PartialOrd for Trailing<'_> {
+impl PartialOrd for Trailing {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }

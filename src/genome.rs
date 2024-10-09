@@ -1,11 +1,15 @@
+extern crate alloc;
+
 use crate::{conn::Conn, node::*};
-use std::{array, collections::*, fmt, pin::Pin};
+use core::{array, fmt};
+use alloc::{boxed::Box, collections::*, rc::Rc};
+use hashbrown::HashSet;
 use rand::{Rng, seq::IteratorRandom};
 
 pub struct Genome<const I: usize, const O: usize> {
-    input: Pin<Box<[Input; I]>>,
-    hidden: HashSet<Pin<Box<Hidden>>>,
-    output: Pin<Box<[Output; O]>>,
+    input: Box<[Rc<Input>; I]>,
+    hidden: HashSet<Rc<Hidden>>,
+    output: Box<[Rc<Output>; O]>,
     conns: BTreeSet<Conn>,
     fitness: f32,
 }
@@ -13,9 +17,9 @@ pub struct Genome<const I: usize, const O: usize> {
 impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn new() -> Self {
         Self {
-            input: Box::into_pin(Box::new(array::from_fn::<_, I, _>(|_| Input::new()))),
+            input: Box::new(array::from_fn::<_, I, _>(|_| Input::new())),
             hidden: HashSet::new(),
-            output: Box::into_pin(Box::new(array::from_fn::<_, O, _>(|_| Output::new()))),
+            output: Box::new(array::from_fn::<_, O, _>(|_| Output::new())),
             conns: BTreeSet::new(),
             fitness: f32::default(),
         }
@@ -23,10 +27,10 @@ impl<const I: usize, const O: usize> Genome<I, O> {
 
     pub fn mutate_add_conn(&mut self, rng: &mut impl Rng) {
         let leading = self.input.iter().map(Leading::from)
-            .chain(self.hidden.iter().map(|hidden| Leading::from(hidden.as_ref())))
+            .chain(self.hidden.iter().map(Leading::from))
             .choose(rng).unwrap();
 
-        let trailing = self.hidden.iter().map(|hidden| Trailing::from(hidden.as_ref()))
+        let trailing = self.hidden.iter().map(Trailing::from)
             .chain(self.output.iter().map(Trailing::from))
             .filter(|trailing| *trailing != leading)
             .choose(rng).unwrap();
@@ -38,7 +42,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         let conn = self.conns.iter().filter(|conn| conn.enabled()).choose(rng).unwrap();
         conn.disable();
 
-        let middle = self.hidden.get_or_insert(Hidden::new(conn)).as_ref();
+        let middle = self.hidden.get_or_insert(Hidden::new(conn));
 
         let first = Conn::new(conn.leading(), Trailing::from(middle));
         let last = Conn::new(Leading::from(middle), conn.trailing());

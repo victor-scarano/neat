@@ -1,5 +1,8 @@
-use crate::{node::*, population::Population};
-use std::{cell::Cell, cmp, fmt};
+extern crate alloc;
+
+use crate::{node::*, pop::Pop};
+use core::{cell::Cell, cmp, fmt};
+use alloc::rc::Rc;
 
 #[derive(PartialEq)]
 pub struct Output {
@@ -11,14 +14,14 @@ pub struct Output {
 }
 
 impl Output {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Rc<Self> {
+        Rc::new(Self {
             level: 1.into(),
             activation: Cell::new(|_| f32::NAN),
             response: f32::NAN,
             bias: f32::NAN,
-            innov: Population::next_node_innov(),
-        }
+            innov: Pop::next_node_innov(),
+        })
     }
 }
 
