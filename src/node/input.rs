@@ -5,15 +5,17 @@ use core::fmt;
 use alloc::rc::Rc;
 
 pub struct Input {
-    bias: f32,
     innov: usize,
+    pub idx: usize,
+    bias: f32,
 }
 
 impl Input {
-    pub fn new() -> Rc<Self> {
+    pub fn new(idx: usize) -> Rc<Self> {
         Rc::new(Self {
-            bias: f32::NAN,
             innov: Pop::next_node_innov(),
+            idx,
+            bias: f32::NAN,
         })
     }
 }
@@ -31,8 +33,6 @@ impl Node for Input {
         self.innov
     }
 }
-
-impl Leadingable for Input {}
 
 impl fmt::Debug for Input {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -1,13 +1,13 @@
-use crate::{node::*, pop::Pop};
+use crate::{node::{Leading, Node, Trailing, Trailable}, pop::Pop};
 use core::{cell::Cell, cmp::Ordering, fmt, hash};
 
 pub struct Conn {
-    pub leading: Leading,
-    pub trailing: Trailing,
-    level: usize,
-    weight: f32,
+    pub innov: usize,
+    pub level: usize,
     enabled: Cell<bool>,
-    innov: usize,
+    pub weight: f32,
+    leading: Leading,
+    trailing: Trailing,
 }
 
 impl Conn {
@@ -17,13 +17,17 @@ impl Conn {
         trailing.update_level(leading.level() + 1);
 
         Self {
-            leading: leading.clone(),
-            trailing: trailing.clone(),
+            innov: Pop::next_conn_innov(&leading, &trailing),
             level: leading.level(),
-            weight: f32::NAN,
             enabled: true.into(),
-            innov: Pop::next_conn_innov(&leading, &trailing)
+            weight: f32::NAN,
+            leading,
+            trailing
         }
+    }
+
+    pub fn enabled(&self) -> bool {
+        self.enabled.get()
     }
 
     pub fn leading(&self) -> Leading {
@@ -32,22 +36,6 @@ impl Conn {
 
     pub fn trailing(&self) -> Trailing {
         self.trailing.clone()
-    }
-
-    pub const fn level(&self) -> usize {
-        self.level
-    }
-
-    pub const fn weight(&self) -> f32 {
-        self.weight
-    }
-
-    pub fn enabled(&self) -> bool {
-        self.enabled.get()
-    }
-
-    pub const fn innov(&self) -> usize {
-        self.innov
     }
 
     pub fn disable(&self) {
@@ -78,7 +66,7 @@ impl fmt::Debug for Conn {
 
 impl hash::Hash for Conn {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        todo!()
+        todo!();
     }
 }
 

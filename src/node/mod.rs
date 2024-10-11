@@ -16,9 +16,7 @@ pub trait Node {
     fn innov(&self) -> usize;
 }
 
-pub trait Leadingable {}
-
-pub trait Trailingable {
+pub trait Trailable {
     fn update_level(&self, level: usize);
     fn activate(&self, x: f32) -> f32;
     fn response(&self) -> f32;

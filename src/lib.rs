@@ -1,6 +1,5 @@
-// #![cfg_attr(not(test), no_std)]
-#![no_std]
-#![feature(cell_update, debug_closure_helpers, thread_local)]
+#![cfg_attr(not(test), no_std)]
+#![feature(allocator_api, cell_update, debug_closure_helpers, thread_local)]
 #![allow(dead_code, clippy::mutable_key_type, unused_variables)]
 
 mod conn;

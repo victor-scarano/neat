@@ -39,7 +39,7 @@ impl Node for Output {
     }
 }
 
-impl Trailingable for Output {
+impl Trailable for Output {
     fn update_level(&self, level: usize) {
         self.level.update(|current| cmp::max(current, level));
     }

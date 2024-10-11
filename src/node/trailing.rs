@@ -56,7 +56,7 @@ impl Node for Trailing {
     }
 }
 
-impl Trailingable for Trailing {
+impl Trailable for Trailing {
     fn update_level(&self, level: usize) {
         match self {
             Self::Hidden(hidden) => hidden.update_level(level),

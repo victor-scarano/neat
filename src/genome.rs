@@ -2,7 +2,7 @@ extern crate alloc;
 
 use crate::{conn::Conn, node::*};
 use core::{array, fmt};
-use alloc::{boxed::Box, collections::*, rc::Rc};
+use alloc::{boxed::Box, collections::{BTreeMap, BTreeSet}, rc::Rc};
 use hashbrown::HashSet;
 use rand::{Rng, seq::IteratorRandom};
 
@@ -16,11 +16,11 @@ pub struct Genome<const I: usize, const O: usize> {
 
 impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn new() -> Self {
-        assert_ne!(I, 0);
-        assert_ne!(O, 0);
+        assert!(I > 0);
+        assert!(O > 0);
 
         Self {
-            input: Box::new(array::from_fn::<_, I, _>(|_| Input::new())),
+            input: Box::new(array::from_fn::<_, I, _>(|idx| Input::new(idx))),
             hidden: HashSet::new(),
             output: Box::new(array::from_fn::<_, O, _>(|_| Output::new())),
             conns: BTreeSet::new(),
@@ -31,29 +31,37 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn mutate_add_conn(&mut self, rng: &mut impl Rng) {
         let leading = self.input.iter().map(Leading::from)
             .chain(self.hidden.iter().map(Leading::from))
-            .choose(rng).unwrap();
+            .choose(rng)
+            .expect("self.input should be non-zero");
 
         let trailing = self.hidden.iter().map(Trailing::from)
             .chain(self.output.iter().map(Trailing::from))
             .filter(|trailing| *trailing != leading)
-            .choose(rng).unwrap();
+            .choose(rng)
+            .expect("self.output should be non-zero");
 
         self.conns.insert(Conn::new(leading, trailing));
     }
 
     pub fn mutate_split_conn(&mut self, rng: &mut impl Rng) {
-        assert_ne!(self.conns.len(), 0);
+        assert!(self.conns.len() > 0);
 
-        let conn = self.conns.iter().filter(|conn| conn.enabled()).choose(rng).unwrap();
+        let conn = self.conns.iter()
+            .filter(|conn| conn.enabled())
+            .choose(rng)
+            .expect("self.conns should contain at least one enabled conn");
         conn.disable();
 
+        // this should always insert
         let middle = self.hidden.get_or_insert(Hidden::new(conn));
 
         let first = Conn::new(conn.leading(), Trailing::from(middle));
         let last = Conn::new(Leading::from(middle), conn.trailing());
 
-        self.conns.insert(first);
-        self.conns.insert(last);
+        let inserted = self.conns.insert(first);
+        assert!(inserted);
+        let inserted = self.conns.insert(last);
+        assert!(inserted);
     }
 
     pub fn mutate_weight(&mut self) {
@@ -63,6 +71,24 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn activate(&self, inputs: impl AsRef<[f32; I]>) -> [f32; O] {
         // activation(bias + (response * aggregation(inputs)))
         // input nodes have: activation=identity, response=1, agreggation=none
+        
+        let inputs = inputs.as_ref();
+
+        let mut map = BTreeMap::<_, f32>::new();
+
+        for (conn, val) in self.conns.iter().filter_map(|conn| {
+            conn.enabled()
+                .then(|| conn.leading().input())
+                .flatten()
+                .map(|input| (conn, inputs[input.idx]))
+        }) {
+            *map.entry(conn.trailing()).or_default() += conn.leading().bias() + val;
+        }
+
+        for conn in self.conns.iter().filter(|conn| conn.level != 0) {
+            todo!();
+        }
+
         todo!();
     }
 

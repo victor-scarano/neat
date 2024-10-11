@@ -42,9 +42,7 @@ impl Node for Hidden {
     }
 }
 
-impl Leadingable for Hidden {}
-
-impl Trailingable for Hidden {
+impl Trailable for Hidden {
     fn update_level(&self, level: usize) {
         self.level.update(|current| cmp::max(current, level));
     }

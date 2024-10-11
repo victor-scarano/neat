@@ -56,8 +56,6 @@ impl Node for Leading {
     }
 }
 
-impl Leadingable for Leading {}
-
 impl From<&Rc<Input>> for Leading {
     fn from(value: &Rc<Input>) -> Self {
         Self::Input(value.clone())
