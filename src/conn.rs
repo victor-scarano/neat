@@ -4,14 +4,17 @@ use core::{cell::Cell, cmp::Ordering, fmt, hash};
 pub struct Conn {
     pub innov: usize,
     pub level: usize,
-    enabled: Cell<bool>,
+    pub enabled: Cell<bool>,
     pub weight: f32,
-    leading: Leading,
-    trailing: Trailing,
+    pub leading: Leading,
+    pub trailing: Trailing,
 }
 
 impl Conn {
-    pub fn new(leading: Leading, trailing: Trailing) -> Self {
+    pub fn new(leading: impl Into<&Leading>, trailing: impl Into<&Trailing>) -> Self {
+        let leading = leading.into();
+        let trailing = trailing.into();
+
         assert_ne!(leading, trailing);
 
         trailing.update_level(leading.level() + 1);
@@ -21,25 +24,9 @@ impl Conn {
             level: leading.level(),
             enabled: true.into(),
             weight: f32::NAN,
-            leading,
-            trailing
+            leading: leading.clone(),
+            trailing: trailing.clone(),
         }
-    }
-
-    pub fn enabled(&self) -> bool {
-        self.enabled.get()
-    }
-
-    pub fn leading(&self) -> Leading {
-        self.leading.clone()
-    }
-
-    pub fn trailing(&self) -> Trailing {
-        self.trailing.clone()
-    }
-
-    pub fn disable(&self) {
-        self.enabled.set(false);
     }
 }
 

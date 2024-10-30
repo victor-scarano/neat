@@ -2,7 +2,7 @@ extern crate alloc;
 
 use crate::{conn::Conn, node::*};
 use core::{array, fmt};
-use alloc::{boxed::Box, collections::{BTreeMap, BTreeSet}, rc::Rc};
+use alloc::{boxed::Box, collections::{BTreeMap, BTreeSet}, rc::Rc, vec::Vec};
 use hashbrown::HashSet;
 use rand::{Rng, seq::IteratorRandom};
 
@@ -40,53 +40,71 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             .choose(rng)
             .expect("self.output should be non-zero");
 
-        self.conns.insert(Conn::new(leading, trailing));
+        assert!(self.conns.insert(Conn::new(&leading, &trailing)));
     }
 
     pub fn mutate_split_conn(&mut self, rng: &mut impl Rng) {
         assert!(self.conns.len() > 0);
 
-        let conn = self.conns.iter()
-            .filter(|conn| conn.enabled())
-            .choose(rng)
-            .expect("self.conns should contain at least one enabled conn");
-        conn.disable();
+        let conn = self.conns.iter().filter(|conn| conn.enabled.get()).choose(rng).unwrap();
+        conn.enabled.set(false);
 
-        // this should always insert
-        let middle = self.hidden.get_or_insert(Hidden::new(conn));
+        let middle = self.hidden.get_or_insert(Hidden::new(conn)); // should always insert
+        let first = Conn::new(&conn.leading, middle);
+        let last = Conn::new(middle, &conn.trailing);
 
-        let first = Conn::new(conn.leading(), Trailing::from(middle));
-        let last = Conn::new(Leading::from(middle), conn.trailing());
-
-        let inserted = self.conns.insert(first);
-        assert!(inserted);
-        let inserted = self.conns.insert(last);
-        assert!(inserted);
+        assert!(self.conns.insert(first));
+        assert!(self.conns.insert(last));
     }
 
     pub fn mutate_weight(&mut self) {
         todo!();
     }
 
+    // weight * activation(bias + (response * aggregation(inputs)))
+    // input nodes have: activation=identity, response=1, agreggation=none
     pub fn activate(&self, inputs: impl AsRef<[f32; I]>) -> [f32; O] {
-        // activation(bias + (response * aggregation(inputs)))
-        // input nodes have: activation=identity, response=1, agreggation=none
-        
-        let inputs = inputs.as_ref();
-
-        let mut map = BTreeMap::<_, f32>::new();
-
-        for (conn, val) in self.conns.iter().filter_map(|conn| {
-            conn.enabled()
-                .then(|| conn.leading().input())
-                .flatten()
-                .map(|input| (conn, inputs[input.idx]))
-        }) {
-            *map.entry(conn.trailing()).or_default() += conn.leading().bias() + val;
+        enum Aggregator {
+            Accum(Vec<f32>),
+            Eval(f32),
         }
 
-        for conn in self.conns.iter().filter(|conn| conn.level != 0) {
-            todo!();
+        impl Aggregator {
+            fn get_or_aggregate(&self) -> f32 {
+                match self {
+                    Self::Accum(accum) => (),
+                    Self::Eval(eval) => eval,
+                }
+            }
+        }
+
+        impl Default for Aggregator {
+            fn default() -> Self {
+                Self::Accum(Vec::new())
+            }
+        }
+        
+        let inputs = inputs.as_ref();
+        let mut map = BTreeMap::<Trailing, Aggregator>::new();
+
+        for layer in self.conns.iter().filter(|conn| conn.enabled()) {
+            match layer.leading() {
+                Leading::Input(input) => {
+                    let aggregator = map.entry(layer.trailing()).or_default();
+                    if let Aggregator::Accum(accum) = aggregator {
+                        accum.push(layer.weight * (input.bias() + inputs[input.idx]));
+                    }
+                },
+                Leading::Hidden(hidden) => {
+                    let aggregator = map.entry(layer.trailing()).or_default();
+                    if let Aggregator::Accum(accum) = aggregator {
+                        // don't confuse the accum in this scope with the accum that will be used as input.
+                        // we want an easy way to either evaluate the input accum if it hasnt
+                        // already, or just get the evaluated value out so we can activate this
+                        // layer's input.
+                    }
+                },
+            }
         }
 
         todo!();
