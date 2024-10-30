@@ -16,8 +16,8 @@ pub struct Genome<const I: usize, const O: usize> {
 
 impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn new() -> Self {
-        assert!(I > 0);
-        assert!(O > 0);
+        assert_ne!(I, 0);
+        assert_ne!(O, 0);
 
         Self {
             input: Box::new(array::from_fn::<_, I, _>(|idx| Input::new(idx))),
@@ -32,29 +32,33 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         let leading = self.input.iter().map(Leading::from)
             .chain(self.hidden.iter().map(Leading::from))
             .choose(rng)
-            .expect("self.input should be non-zero");
+            .unwrap();
 
         let trailing = self.hidden.iter().map(Trailing::from)
             .chain(self.output.iter().map(Trailing::from))
             .filter(|trailing| *trailing != leading)
             .choose(rng)
-            .expect("self.output should be non-zero");
+            .unwrap();
 
-        assert!(self.conns.insert(Conn::new(&leading, &trailing)));
+        let conn = Conn::new(leading, trailing);
+        self.conns.insert(conn);
     }
 
     pub fn mutate_split_conn(&mut self, rng: &mut impl Rng) {
-        assert!(self.conns.len() > 0);
+        let conn = self.conns.iter()
+            .filter(|conn| conn.enabled.get())
+            .choose(rng)
+            .unwrap();
 
-        let conn = self.conns.iter().filter(|conn| conn.enabled.get()).choose(rng).unwrap();
         conn.enabled.set(false);
 
-        let middle = self.hidden.get_or_insert(Hidden::new(conn)); // should always insert
+        let middle = self.hidden.get_or_insert(Hidden::new(conn));
+
         let first = Conn::new(&conn.leading, middle);
         let last = Conn::new(middle, &conn.trailing);
 
-        assert!(self.conns.insert(first));
-        assert!(self.conns.insert(last));
+        self.conns.insert(first);
+        self.conns.insert(last);
     }
 
     pub fn mutate_weight(&mut self) {
@@ -64,50 +68,42 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     // weight * activation(bias + (response * aggregation(inputs)))
     // input nodes have: activation=identity, response=1, agreggation=none
     pub fn activate(&self, inputs: impl AsRef<[f32; I]>) -> [f32; O] {
-        enum Aggregator {
-            Accum(Vec<f32>),
-            Eval(f32),
-        }
+        let inputs = inputs.as_ref();
 
-        impl Aggregator {
-            fn get_or_aggregate(&self) -> f32 {
-                match self {
-                    Self::Accum(accum) => (),
-                    Self::Eval(eval) => eval,
+        let mut map = BTreeMap::<Trailing, Accumulator>::new();
+
+        for layer in self.conns.iter().filter(|conn| conn.enabled.get()) {
+            match layer.leading {
+                Leading::Input(ref input) => {
+                    map
+                        .entry(layer.trailing.clone())
+                        .or_default()
+                        .add(layer.weight * (input.bias() + inputs[input.idx]));
+                }
+                Leading::Hidden(ref hidden) => {
+                    let aggregation = map
+                        .entry(Trailing::from(hidden))
+                        .or_default()
+                        .get_or_aggregate(hidden.aggregator);
+
+                    map
+                        .entry(layer.trailing.clone())
+                        .or_default()
+                        .add(layer.weight * (hidden.bias() + (hidden.response() * aggregation)));
                 }
             }
         }
 
-        impl Default for Aggregator {
-            fn default() -> Self {
-                Self::Accum(Vec::new())
-            }
-        }
-        
-        let inputs = inputs.as_ref();
-        let mut map = BTreeMap::<Trailing, Aggregator>::new();
+        array::from_fn::<_, O, _>(|idx| {
+            let output = &self.output[idx];
 
-        for layer in self.conns.iter().filter(|conn| conn.enabled()) {
-            match layer.leading() {
-                Leading::Input(input) => {
-                    let aggregator = map.entry(layer.trailing()).or_default();
-                    if let Aggregator::Accum(accum) = aggregator {
-                        accum.push(layer.weight * (input.bias() + inputs[input.idx]));
-                    }
-                },
-                Leading::Hidden(hidden) => {
-                    let aggregator = map.entry(layer.trailing()).or_default();
-                    if let Aggregator::Accum(accum) = aggregator {
-                        // don't confuse the accum in this scope with the accum that will be used as input.
-                        // we want an easy way to either evaluate the input accum if it hasnt
-                        // already, or just get the evaluated value out so we can activate this
-                        // layer's input.
-                    }
-                },
-            }
-        }
+            let aggregation = map
+                .entry(Trailing::from(output))
+                .or_default()
+                .get_or_aggregate(output.aggregator);
 
-        todo!();
+            output.bias() + (output.response() * aggregation)
+        })
     }
 
     pub fn compat_dist(&self) -> f32 {
@@ -137,3 +133,32 @@ impl<const I: usize, const G: usize> fmt::Debug for Genome<I, G> {
     }
 }
 
+enum Accumulator {
+    Accumulating(Vec<f32>),
+    Aggregated(f32),
+}
+
+impl Accumulator {
+    fn add(&mut self, value: f32) {
+        if let Self::Accumulating(accum) = self {
+            accum.push(value);
+        }
+    }
+
+    fn get_or_aggregate(&mut self, aggregator: fn(&[f32]) -> f32) -> f32 {
+        match self {
+            Self::Accumulating(accum) => {
+                let aggregated = aggregator(accum.as_slice());
+                *self = Self::Aggregated(aggregated);
+                aggregated
+            }
+            Self::Aggregated(eval) => *eval
+        }
+    }
+}
+
+impl Default for Accumulator {
+    fn default() -> Self {
+        Self::Accumulating(Vec::new())
+    }
+}

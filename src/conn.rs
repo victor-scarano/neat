@@ -11,7 +11,7 @@ pub struct Conn {
 }
 
 impl Conn {
-    pub fn new(leading: impl Into<&Leading>, trailing: impl Into<&Trailing>) -> Self {
+    pub fn new(leading: impl Into<Leading>, trailing: impl Into<Trailing>) -> Self {
         let leading = leading.into();
         let trailing = trailing.into();
 
@@ -24,8 +24,8 @@ impl Conn {
             level: leading.level(),
             enabled: true.into(),
             weight: f32::NAN,
-            leading: leading.clone(),
-            trailing: trailing.clone(),
+            leading,
+            trailing,
         }
     }
 }

@@ -58,6 +58,7 @@ impl fmt::Debug for Input {
 pub struct Hidden {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
+    pub aggregator: fn(&[f32]) -> f32,
     response: f32,
     bias: f32,
     innov: usize,
@@ -65,12 +66,13 @@ pub struct Hidden {
 
 impl Hidden {
     pub fn new(conn: &Conn) -> Rc<Self> {
-        let curr_level = conn.leading().level();
-        conn.trailing().update_level(curr_level + 1);
+        let curr_level = conn.leading.level();
+        conn.trailing.update_level(curr_level + 1);
 
         Rc::new(Self {
             level: Cell::new(curr_level),
             activation: Cell::new(|_| f32::NAN),
+            aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
             response: f32::NAN,
             bias: f32::NAN,
             innov: Pop::next_node_innov(),
@@ -129,6 +131,12 @@ impl hash::Hash for Hidden {
     }
 }
 
+impl Ord for Hidden {
+    fn cmp(&self, other: &Self) -> Ordering {
+        todo!()
+    }
+}
+
 impl PartialEq for Hidden {
     fn eq(&self, other: &Self) -> bool {
         self.response == other.response &&
@@ -137,10 +145,17 @@ impl PartialEq for Hidden {
     }
 }
 
+impl PartialOrd for Hidden {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 #[derive(PartialEq)]
 pub struct Output {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
+    pub aggregator: fn(&[f32]) -> f32,
     response: f32,
     bias: f32,
     innov: usize,
@@ -151,6 +166,7 @@ impl Output {
         Rc::new(Self {
             level: 1.into(),
             activation: Cell::new(|_| f32::NAN),
+            aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
             response: f32::NAN,
             bias: f32::NAN,
             innov: Pop::next_node_innov(),
@@ -251,6 +267,12 @@ impl Node for Leading {
     }
 }
 
+impl From<&Leading> for Leading {
+    fn from(value: &Leading) -> Self {
+        value.clone()
+    }
+}
+
 impl From<&Rc<Input>> for Leading {
     fn from(value: &Rc<Input>) -> Self {
         Self::Input(value.clone())
@@ -347,6 +369,24 @@ impl Trailable for Trailing {
     }
 }
 
+impl From<&Trailing> for Trailing {
+    fn from(value: &Trailing) -> Self {
+        value.clone()
+    }
+}
+
+impl From<Rc<Hidden>> for Trailing {
+    fn from(value: Rc<Hidden>) -> Self {
+        Self::Hidden(value)
+    }
+}
+
+impl From<Rc<Output>> for Trailing {
+    fn from(value: Rc<Output>) -> Self {
+        Self::Output(value)
+    }
+}
+
 impl From<&Rc<Hidden>> for Trailing {
     fn from(value: &Rc<Hidden>) -> Self {
         Self::Hidden(value.clone())
@@ -356,12 +396,6 @@ impl From<&Rc<Hidden>> for Trailing {
 impl From<&Rc<Output>> for Trailing {
     fn from(value: &Rc<Output>) -> Self {
         Self::Output(value.clone())
-    }
-}
-
-impl From<&Rc<Hidden>> for &Trailing {
-    fn from(value: &Rc<Hidden>) -> Self {
-        
     }
 }
 
