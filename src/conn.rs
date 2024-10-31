@@ -23,7 +23,7 @@ impl Conn {
             innov: Pop::next_conn_innov(&leading, &trailing),
             level: leading.level(),
             enabled: true.into(),
-            weight: f32::NAN,
+            weight: 1.0,
             leading,
             trailing,
         }
@@ -36,12 +36,12 @@ impl fmt::Debug for Conn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection")
             .field_with("Leading Node", |f| match &self.leading {
-                Leading::Input(input) => fmt::Pointer::fmt(&input, f),
-                Leading::Hidden(hidden) => fmt::Pointer::fmt(&hidden, f)
+                Leading::Input(input) => fmt::Pointer::fmt(input, f),
+                Leading::Hidden(hidden) => fmt::Pointer::fmt(hidden, f)
             })
             .field_with("Trailing Node", |f| match &self.trailing {
-                Trailing::Hidden(hidden) => fmt::Pointer::fmt(&hidden, f),
-                Trailing::Output(output) => fmt::Pointer::fmt(&output, f),
+                Trailing::Hidden(hidden) => fmt::Pointer::fmt(hidden, f),
+                Trailing::Output(output) => fmt::Pointer::fmt(output, f),
             })
             .field("Level", &self.level)
             .field("Weight", &self.weight)
@@ -57,15 +57,17 @@ impl hash::Hash for Conn {
     }
 }
 
+// needs to be changed, but this works for now
 impl Ord for Conn {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.level.cmp(&other.level)
+        self.level.cmp(&other.level).then(self.innov.cmp(&other.innov))
     }
 }
 
+// used to be equal if innovations were equal, but needs to reflect ord impl
 impl PartialEq for Conn {
     fn eq(&self, other: &Self) -> bool {
-        self.innov == other.innov
+        self.cmp(other).is_eq()
     }
 }
 

@@ -26,7 +26,7 @@ impl Input {
         Rc::new(Self {
             innov: Pop::next_node_innov(),
             idx,
-            bias: f32::NAN,
+            bias: 0.0,
         })
     }
 }
@@ -50,6 +50,7 @@ impl fmt::Debug for Input {
         f.debug_struct("Input Node")
             .field("Bias", &self.bias)
             .field("Innovation", &self.innov)
+            .field("Index", &self.idx)
             .finish()
     }
 }
@@ -71,10 +72,10 @@ impl Hidden {
 
         Rc::new(Self {
             level: Cell::new(curr_level),
-            activation: Cell::new(|_| f32::NAN),
+            activation: Cell::new(|x| x),
             aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
-            response: f32::NAN,
-            bias: f32::NAN,
+            response: 1.0,
+            bias: 0.0,
             innov: Pop::next_node_innov(),
         })
     }
@@ -165,10 +166,10 @@ impl Output {
     pub fn new() -> Rc<Self> {
         Rc::new(Self {
             level: 1.into(),
-            activation: Cell::new(|_| f32::NAN),
+            activation: Cell::new(|x| x),
             aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
-            response: f32::NAN,
-            bias: f32::NAN,
+            response: 1.0,
+            bias: 0.0,
             innov: Pop::next_node_innov(),
         })
     }
@@ -212,6 +213,15 @@ impl fmt::Debug for Output {
             .field("Bias", &self.bias)
             .field("Innovation", &self.innov)
             .finish()
+    }
+}
+
+impl hash::Hash for Output {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.level.get().hash(state);
+        self.response.to_bits().hash(state);
+        self.bias.to_bits().hash(state);
+        self.innov.hash(state);
     }
 }
 
@@ -294,7 +304,7 @@ impl PartialEq<Trailing> for Leading {
     }
 }
 
-#[derive(Eq, Clone, Debug, PartialEq)]
+#[derive(Eq, Clone, Debug, Hash, PartialEq)]
 pub enum Trailing {
     Hidden(Rc<Hidden>),
     Output(Rc<Output>),

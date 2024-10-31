@@ -10,4 +10,8 @@ default-features = false
 
 [dependencies.rand]
 version = "0.8.5"
-default-features = false
+# default-features = false
+
+# - consider using derivative crate, code would be cleaner and less cluttered
+# - need to create custom error types, will prob use thiserror
+# - need to figure out how to implement serialize and deserialize for types

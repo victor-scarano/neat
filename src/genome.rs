@@ -2,8 +2,8 @@ extern crate alloc;
 
 use crate::{conn::Conn, node::*};
 use core::{array, fmt};
-use alloc::{boxed::Box, collections::{BTreeMap, BTreeSet}, rc::Rc, vec::Vec};
-use hashbrown::HashSet;
+use alloc::{boxed::Box, collections::BTreeSet, rc::Rc, vec::Vec};
+use hashbrown::{HashMap, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
 pub struct Genome<const I: usize, const O: usize> {
@@ -28,20 +28,26 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         }
     }
 
+    // currently tries to create the same connection if the rng does not change
+    // between calls.
+    // either we error if this happens, forcing the caller to call the function
+    // again with a different rng.
+    // OR we default to finding the first available connection, and if we cant
+    // find any, then we error.
     pub fn mutate_add_conn(&mut self, rng: &mut impl Rng) {
         let leading = self.input.iter().map(Leading::from)
             .chain(self.hidden.iter().map(Leading::from))
-            .choose(rng)
+            .choose_stable(rng)
             .unwrap();
 
         let trailing = self.hidden.iter().map(Trailing::from)
             .chain(self.output.iter().map(Trailing::from))
             .filter(|trailing| *trailing != leading)
-            .choose(rng)
+            .choose_stable(rng)
             .unwrap();
 
         let conn = Conn::new(leading, trailing);
-        self.conns.insert(conn);
+        assert!(self.conns.insert(conn));
     }
 
     pub fn mutate_split_conn(&mut self, rng: &mut impl Rng) {
@@ -67,10 +73,12 @@ impl<const I: usize, const O: usize> Genome<I, O> {
 
     // weight * activation(bias + (response * aggregation(inputs)))
     // input nodes have: activation=identity, response=1, agreggation=none
-    pub fn activate(&self, inputs: impl AsRef<[f32; I]>) -> [f32; O] {
-        let inputs = inputs.as_ref();
-
-        let mut map = BTreeMap::<Trailing, Accumulator>::new();
+    // is there a way we can cut down on space complexity here?
+    // compare current time/space complexity with old implementation.
+    // i think after a small space complexity optimization, this implementation
+    // will be the best of both worlds.
+    pub fn activate(&self, inputs: [f32; I]) -> [f32; O] {
+        let mut map = HashMap::<Trailing, Accumulator>::new();
 
         for layer in self.conns.iter().filter(|conn| conn.enabled.get()) {
             match layer.leading {
@@ -120,13 +128,13 @@ impl<const I: usize, const G: usize> fmt::Debug for Genome<I, G> {
         f.debug_struct("Genome")
             .field_with("Connections", |f| f.debug_list().entries(self.conns.iter()).finish())
             .field_with("Input Nodes", |f| self.input.iter().fold(&mut f.debug_map(), |f, input| {
-                f.key_with(|f| fmt::Pointer::fmt(&input, f)).value(input)
+                f.key_with(|f| fmt::Pointer::fmt(input, f)).value(input)
             }).finish())
             .field_with("Hidden Nodes", |f| self.hidden.iter().fold(&mut f.debug_map(), |f, hidden| {
-                f.key_with(|f| fmt::Pointer::fmt(&hidden, f)).value(hidden)
+                f.key_with(|f| fmt::Pointer::fmt(hidden, f)).value(hidden)
             }).finish())
             .field_with("Output Nodes", |f| self.output.iter().fold(&mut f.debug_map(), |f, output| {
-                f.key_with(|f| fmt::Pointer::fmt(&output, f)).value(output)
+                f.key_with(|f| fmt::Pointer::fmt(output, f)).value(output)
             }).finish())
             .field("Fitness", &self.fitness)
             .finish()
