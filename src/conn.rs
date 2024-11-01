@@ -1,55 +1,32 @@
-use crate::{node::*, population::Population};
-use std::{cell::Cell, cmp::Ordering, fmt, hash};
+use crate::{node::{Leading, Node, Trailing, Trailable}, pop::Pop};
+use core::{cell::Cell, cmp::Ordering, fmt, hash};
 
 pub struct Conn {
-    pub leading: UnsafeLeading,
-    pub trailing: UnsafeTrailing,
-    level: usize,
-    weight: f32,
-    enabled: Cell<bool>,
-    innov: usize,
+    pub innov: usize,
+    pub level: usize,
+    pub enabled: Cell<bool>,
+    pub weight: f32,
+    pub leading: Leading,
+    pub trailing: Trailing,
 }
 
 impl Conn {
-    pub fn new(leading: Leading, trailing: Trailing) -> Self {
+    pub fn new(leading: impl Into<Leading>, trailing: impl Into<Trailing>) -> Self {
+        let leading = leading.into();
+        let trailing = trailing.into();
+
         assert_ne!(leading, trailing);
+
         trailing.update_level(leading.level() + 1);
+
         Self {
-            leading: UnsafeLeading::from(leading),
-            trailing: UnsafeTrailing::from(trailing),
+            innov: Pop::next_conn_innov(&leading, &trailing),
             level: leading.level(),
-            weight: f32::NAN,
             enabled: true.into(),
-            innov: Population::next_conn_innov(&leading, &trailing)
+            weight: 1.0,
+            leading,
+            trailing,
         }
-    }
-
-    pub fn leading(&self) -> Leading {
-        Leading::from(&self.leading)
-    }
-
-    pub fn trailing(&self) -> Trailing {
-        Trailing::from(&self.trailing)
-    }
-
-    pub const fn level(&self) -> usize {
-        self.level
-    }
-
-    pub const fn weight(&self) -> f32 {
-        self.weight
-    }
-
-    pub fn enabled(&self) -> bool {
-        self.enabled.get()
-    }
-
-    pub const fn innov(&self) -> usize {
-        self.innov
-    }
-
-    pub fn disable(&self) {
-        self.enabled.set(false);
     }
 }
 
@@ -58,13 +35,13 @@ impl Eq for Conn {}
 impl fmt::Debug for Conn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection")
-            .field_with("Leading Node", |f| match self.leading {
-                UnsafeLeading::Input(input) => fmt::Pointer::fmt(&input, f),
-                UnsafeLeading::Hidden(hidden) => fmt::Pointer::fmt(&hidden, f)
+            .field_with("Leading Node", |f| match &self.leading {
+                Leading::Input(input) => fmt::Pointer::fmt(input, f),
+                Leading::Hidden(hidden) => fmt::Pointer::fmt(hidden, f)
             })
-            .field_with("Trailing Node", |f| match self.trailing {
-                UnsafeTrailing::Hidden(hidden) => fmt::Pointer::fmt(&hidden, f),
-                UnsafeTrailing::Output(output) => fmt::Pointer::fmt(&output, f),
+            .field_with("Trailing Node", |f| match &self.trailing {
+                Trailing::Hidden(hidden) => fmt::Pointer::fmt(hidden, f),
+                Trailing::Output(output) => fmt::Pointer::fmt(output, f),
             })
             .field("Level", &self.level)
             .field("Weight", &self.weight)
@@ -76,19 +53,21 @@ impl fmt::Debug for Conn {
 
 impl hash::Hash for Conn {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        todo!()
+        todo!();
     }
 }
 
+// needs to be changed, but this works for now
 impl Ord for Conn {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.level.cmp(&other.level)
+        self.level.cmp(&other.level).then(self.innov.cmp(&other.innov))
     }
 }
 
+// used to be equal if innovations were equal, but needs to reflect ord impl
 impl PartialEq for Conn {
     fn eq(&self, other: &Self) -> bool {
-        self.innov == other.innov
+        self.cmp(other).is_eq()
     }
 }
 

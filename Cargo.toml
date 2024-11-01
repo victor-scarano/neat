@@ -3,8 +3,15 @@ name = "neat"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
-rand = { version = "0.8.5", default-features = false }
+[dependencies.hashbrown]
+version = "0.15.0"
+features = ["default-hasher"]
+default-features = false
 
-[profile.release]
-debug = true
+[dependencies.rand]
+version = "0.8.5"
+# default-features = false
+
+# - consider using derivative crate, code would be cleaner and less cluttered
+# - need to create custom error types, will prob use thiserror
+# - need to figure out how to implement serialize and deserialize for types
