@@ -1,5 +1,5 @@
 use crate::{node::*, pop::Pop};
-use core::{cell::Cell, cmp::Ordering, fmt, hash};
+use core::{cell::Cell, cmp::Ordering, fmt};
 
 pub struct Conn {
     pub leading: Leading,
@@ -52,16 +52,11 @@ impl fmt::Debug for Conn {
     }
 }
 
-impl hash::Hash for Conn {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        todo!();
-    }
-}
-
-// needs to be changed, but this works for now
 impl Ord for Conn {
+    /// Orders enabled [`Conn`]s to the front and disabled `Conn`s to the back. Within both groups, `Conn`s are ordered
+    /// by level.
     fn cmp(&self, other: &Self) -> Ordering {
-        self.level.cmp(&other.level).then(self.innov.cmp(&other.innov))
+        self.enabled.get().cmp(&other.enabled.get()).reverse().then(self.level.cmp(&other.level))
     }
 }
 

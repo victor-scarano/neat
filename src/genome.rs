@@ -64,7 +64,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn mutate_split_conn(&mut self, rng: &mut impl Rng) {
         let conn = self.conns.iter()
             .filter(|conn| conn.enabled.get())
-            .choose(rng)
+            .choose_stable(rng)
             .unwrap();
 
         conn.enabled.set(false);
@@ -85,19 +85,21 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         todo!()
     }
 
+    /// Evaluates the [`Genome`] by propagating the set of `inputs` up the `Genome`'s layers of nodes, modifying the
+    /// them using weights and biases as they go.
     pub fn activate(&self, inputs: [f32; I]) -> [f32; O] {
         let mut map = HashMap::new();
 
-        for conn in self.conns.iter().filter(|conn| conn.enabled.get()) {
+        for conn in self.conns.iter().take_while(|conn| conn.enabled.get()) {
             let eval = match conn.leading {
-                Leading::Input(ref input) => input.eval(conn, inputs),
-                Leading::Hidden(ref hidden) => hidden.eval(conn, &mut map),
+                Leading::Input(ref input) => input.eval(conn.weight, inputs),
+                Leading::Hidden(ref hidden) => hidden.eval(conn.weight, &mut map),
             };
 
             map.entry(conn.trailing.clone()).or_insert(Accum::new()).push(eval);
         }
 
-        array::from_fn::<_, O, _>(|idx| self.outputs.get(idx).unwrap().eval(&mut map))
+        array::from_fn::<_, O, _>(|idx| self.outputs[idx].eval(&mut map))
     }
 
     pub fn compat_dist(&self) -> f32 {

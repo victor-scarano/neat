@@ -62,8 +62,8 @@ impl Input {
         })
     }
 
-    pub fn eval<const I: usize>(&self, conn: &Conn, inputs: [f32; I]) -> f32 {
-        conn.weight * (self.bias() + inputs.get(self.idx).unwrap())
+    pub fn eval<const I: usize>(&self, weight: f32, inputs: [f32; I]) -> f32 {
+        weight * (self.bias() + inputs[self.idx])
     }
 }
 
@@ -77,7 +77,7 @@ impl Node for Input {
 pub struct Hidden {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
-    pub aggregator: fn(&[f32]) -> f32,
+    aggregator: fn(&[f32]) -> f32,
     response: f32,
     bias: f32,
     innov: usize,
@@ -98,9 +98,9 @@ impl Hidden {
         })
     }
 
-    pub fn eval(self: &Rc<Self>, conn: &Conn, map: &mut HashMap<Trailing, Accum>) -> f32 {
+    pub fn eval(self: &Rc<Self>, weight: f32, map: &mut HashMap<Trailing, Accum>) -> f32 {
         let input = map.get_mut(&Trailing::from(self)).unwrap().eval(self.aggregator);
-        conn.weight * self.activate(self.bias() + (self.response() * input))
+        weight * self.activate(self.bias() + (self.response() * input))
     }
 }
 
@@ -134,15 +134,9 @@ impl hash::Hash for Hidden {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         // self.level.get().hash(state);
         // self.activation.get().hash(state);
-        self.response.to_bits().hash(state);
-        self.bias.to_bits().hash(state);
+        self.response.to_le_bytes().hash(state);
+        self.bias.to_le_bytes().hash(state);
         self.innov.hash(state);
-    }
-}
-
-impl Ord for Hidden {
-    fn cmp(&self, other: &Self) -> Ordering {
-        todo!()
     }
 }
 
@@ -152,17 +146,11 @@ impl PartialEq for Hidden {
     }
 }
 
-impl PartialOrd for Hidden {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct Output {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
-    pub aggregator: fn(&[f32]) -> f32,
+    aggregator: fn(&[f32]) -> f32,
     response: f32,
     bias: f32,
     innov: usize,
