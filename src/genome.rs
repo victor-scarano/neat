@@ -88,13 +88,13 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn activate(&self, inputs: [f32; I]) -> [f32; O] {
         let mut map = HashMap::new();
 
-        for layer in self.conns.iter().filter(|conn| conn.enabled.get()) {
-            let eval = match layer.leading {
-                Leading::Input(ref input) => input.eval(layer, inputs),
-                Leading::Hidden(ref hidden) => hidden.eval(layer, &mut map),
+        for conn in self.conns.iter().filter(|conn| conn.enabled.get()) {
+            let eval = match conn.leading {
+                Leading::Input(ref input) => input.eval(conn, inputs),
+                Leading::Hidden(ref hidden) => hidden.eval(conn, &mut map),
             };
 
-            map.entry(layer.trailing.clone()).or_insert(Accum::new()).push(eval);
+            map.entry(conn.trailing.clone()).or_insert(Accum::new()).push(eval);
         }
 
         array::from_fn::<_, O, _>(|idx| self.outputs.get(idx).unwrap().eval(&mut map))

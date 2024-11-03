@@ -62,8 +62,8 @@ impl Input {
         })
     }
 
-    pub fn eval<const I: usize>(&self, layer: &Conn, inputs: [f32; I]) -> f32 {
-        layer.weight * (self.bias() + inputs.get(self.idx).unwrap())
+    pub fn eval<const I: usize>(&self, conn: &Conn, inputs: [f32; I]) -> f32 {
+        conn.weight * (self.bias() + inputs.get(self.idx).unwrap())
     }
 }
 
@@ -98,9 +98,9 @@ impl Hidden {
         })
     }
 
-    pub fn eval(self: &Rc<Self>, layer: &Conn, map: &mut HashMap<Trailing, Accum>) -> f32 {
+    pub fn eval(self: &Rc<Self>, conn: &Conn, map: &mut HashMap<Trailing, Accum>) -> f32 {
         let input = map.get_mut(&Trailing::from(self)).unwrap().eval(self.aggregator);
-        layer.weight * self.activate(self.bias() + (self.response() * input))
+        conn.weight * self.activate(self.bias() + (self.response() * input))
     }
 }
 
