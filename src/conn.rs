@@ -1,13 +1,13 @@
-use crate::{node::{Leading, Node, Trailing, Trailable}, pop::Pop};
+use crate::{node::*, pop::Pop};
 use core::{cell::Cell, cmp::Ordering, fmt, hash};
 
 pub struct Conn {
-    pub innov: usize,
-    pub level: usize,
-    pub enabled: Cell<bool>,
-    pub weight: f32,
     pub leading: Leading,
     pub trailing: Trailing,
+    pub weight: f32,
+    pub enabled: Cell<bool>,
+    pub level: usize,
+    pub innov: usize,
 }
 
 impl Conn {
@@ -34,19 +34,20 @@ impl Eq for Conn {}
 
 impl fmt::Debug for Conn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Connection")
-            .field_with("Leading Node", |f| match &self.leading {
+        f
+            .debug_struct("Conn")
+            .field_with("leading", |f| match &self.leading {
                 Leading::Input(input) => fmt::Pointer::fmt(input, f),
                 Leading::Hidden(hidden) => fmt::Pointer::fmt(hidden, f)
             })
-            .field_with("Trailing Node", |f| match &self.trailing {
+            .field_with("trailing", |f| match &self.trailing {
                 Trailing::Hidden(hidden) => fmt::Pointer::fmt(hidden, f),
                 Trailing::Output(output) => fmt::Pointer::fmt(output, f),
             })
-            .field("Level", &self.level)
-            .field("Weight", &self.weight)
-            .field("Enabled", &self.enabled.get())
-            .field("Innovation", &self.innov)
+            .field("weight", &self.weight)
+            .field("enabled", &self.enabled.get())
+            .field("level", &self.level)
+            .field("innov", &self.innov)
             .finish()
     }
 }

@@ -1,7 +1,37 @@
 extern crate alloc;
 use crate::{conn::Conn, pop::Pop};
-use core::{cell::Cell, cmp::{self, Ordering}, fmt, hash, ptr};
-use alloc::rc::Rc;
+use core::{cell::Cell, cmp::{self, Ordering}, hash, ptr};
+use alloc::{rc::Rc, vec::Vec};
+use hashbrown::HashMap;
+
+pub enum Accum {
+    Elems(Vec<f32>),
+    Eval(f32),
+}
+
+impl Accum {
+    pub fn new() -> Self {
+        Self::Elems(Vec::new())
+    }
+
+    pub fn push(&mut self, value: f32) {
+        match self {
+            Self::Elems(elems) => elems.push(value),
+            Self::Eval(_) => panic!(),
+        }
+    }
+
+    pub fn eval(&mut self, f: fn(&[f32]) -> f32) -> f32 {
+        match self {
+            Self::Elems(elems) => {
+                let eval = f(elems);
+                *self = Self::Eval(eval);
+                eval
+            }
+            Self::Eval(eval) => *eval
+        }
+    }
+}
 
 pub trait Node {
     fn level(&self) -> usize;
@@ -9,12 +39,14 @@ pub trait Node {
     fn innov(&self) -> usize;
 }
 
-pub trait Trailable {
+pub trait Trailable: Node {
     fn update_level(&self, level: usize);
     fn activate(&self, x: f32) -> f32;
     fn response(&self) -> f32;
+    fn aggregator(&self) -> fn(&[f32]) -> f32;
 }
 
+#[derive(Debug)]
 pub struct Input {
     innov: usize,
     pub idx: usize,
@@ -29,33 +61,19 @@ impl Input {
             bias: 0.0,
         })
     }
+
+    pub fn eval<const I: usize>(&self, layer: &Conn, inputs: [f32; I]) -> f32 {
+        layer.weight * (self.bias() + inputs.get(self.idx).unwrap())
+    }
 }
 
 impl Node for Input {
-    fn level(&self) -> usize {
-        0
-    }
-
-    fn bias(&self) -> f32 {
-        self.bias
-    }
-
-    fn innov(&self) -> usize {
-        self.innov
-    }
+    fn level(&self) -> usize { 0 }
+    fn bias(&self) -> f32 { self.bias }
+    fn innov(&self) -> usize { self.innov }
 }
 
-impl fmt::Debug for Input {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Input Node")
-            .field("Bias", &self.bias)
-            .field("Innovation", &self.innov)
-            .field("Index", &self.idx)
-            .finish()
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Hidden {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
@@ -79,20 +97,17 @@ impl Hidden {
             innov: Pop::next_node_innov(),
         })
     }
+
+    pub fn eval(self: &Rc<Self>, layer: &Conn, map: &mut HashMap<Trailing, Accum>) -> f32 {
+        let input = map.get_mut(&Trailing::from(self)).unwrap().eval(self.aggregator);
+        layer.weight * self.activate(self.bias() + (self.response() * input))
+    }
 }
 
 impl Node for Hidden {
-    fn level(&self) -> usize {
-        self.level.get()
-    }
-
-    fn bias(&self) -> f32 {
-        self.bias
-    }
-
-    fn innov(&self) -> usize {
-        self.innov
-    }
+    fn level(&self) -> usize { self.level.get() }
+    fn bias(&self) -> f32 { self.bias }
+    fn innov(&self) -> usize { self.innov }
 }
 
 impl Trailable for Hidden {
@@ -107,20 +122,13 @@ impl Trailable for Hidden {
     fn response(&self) -> f32 {
         self.response
     }
+
+    fn aggregator(&self) -> fn(&[f32]) -> f32 {
+        self.aggregator
+    }
 }
 
 impl Eq for Hidden {}
-
-impl fmt::Debug for Hidden {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Hidden Node")
-            .field("Level", &self.level.get())
-            .field("Response", &self.response)
-            .field("Bias", &self.bias)
-            .field("Innovation", &self.innov)
-            .finish()
-    }
-}
 
 impl hash::Hash for Hidden {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
@@ -140,9 +148,7 @@ impl Ord for Hidden {
 
 impl PartialEq for Hidden {
     fn eq(&self, other: &Self) -> bool {
-        self.response == other.response &&
-            self.bias == other.bias &&
-            self.innov == other.innov
+        self.response == other.response && self.bias == other.bias && self.innov == other.innov
     }
 }
 
@@ -152,7 +158,7 @@ impl PartialOrd for Hidden {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Output {
     level: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
@@ -173,20 +179,17 @@ impl Output {
             innov: Pop::next_node_innov(),
         })
     }
+
+    pub fn eval(self: &Rc<Self>, map: &mut HashMap<Trailing, Accum>) -> f32 {
+        let input = map.get_mut(&Trailing::from(self)).unwrap().eval(self.aggregator);
+        self.activate(self.bias() + (self.response() * input))
+    }
 }
 
 impl Node for Output {
-    fn level(&self) -> usize {
-        self.level.get()
-    }
-
-    fn bias(&self) -> f32 {
-        self.bias
-    }
-
-    fn innov(&self) -> usize {
-        self.innov
-    }
+    fn level(&self) -> usize { self.level.get() }
+    fn bias(&self) -> f32 { self.bias }
+    fn innov(&self) -> usize { self.innov }
 }
 
 impl Trailable for Output {
@@ -201,20 +204,13 @@ impl Trailable for Output {
     fn response(&self) -> f32 {
         self.response
     }
+    
+    fn aggregator(&self) -> fn(&[f32]) -> f32 {
+        self.aggregator
+    }
 }
 
 impl Eq for Output {}
-
-impl fmt::Debug for Output {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Output Node")
-            .field("Level", &self.level.get())
-            .field("Response", &self.response)
-            .field("Bias", &self.bias)
-            .field("Innovation", &self.innov)
-            .finish()
-    }
-}
 
 impl hash::Hash for Output {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
@@ -375,6 +371,13 @@ impl Trailable for Trailing {
         match self {
             Self::Hidden(hidden) => hidden.response(),
             Self::Output(output) => output.response(),
+        }
+    }
+
+    fn aggregator(&self) -> fn(&[f32]) -> f32 {
+        match self {
+            Self::Hidden(hidden) => hidden.aggregator(),
+            Self::Output(output) => output.aggregator(),
         }
     }
 }
