@@ -6,7 +6,7 @@ pub struct Conn {
     pub trailing: Trailing,
     pub weight: f32,
     pub enabled: Cell<bool>,
-    pub level: usize,
+    pub layer: usize,
     pub innov: usize,
 }
 
@@ -17,11 +17,11 @@ impl Conn {
 
         assert_ne!(leading, trailing);
 
-        trailing.update_level(leading.level() + 1);
+        trailing.update_layer(leading.layer() + 1);
 
         Self {
             innov: Pop::next_conn_innov(&leading, &trailing),
-            level: leading.level(),
+            layer: leading.layer(),
             enabled: true.into(),
             weight: 1.0,
             leading,
@@ -46,7 +46,7 @@ impl fmt::Debug for Conn {
             })
             .field("weight", &self.weight)
             .field("enabled", &self.enabled.get())
-            .field("level", &self.level)
+            .field("layer", &self.layer)
             .field("innov", &self.innov)
             .finish()
     }
@@ -56,7 +56,7 @@ impl Ord for Conn {
     /// Orders enabled [`Conn`]s to the front and disabled `Conn`s to the back. Within both groups, `Conn`s are ordered
     /// by level.
     fn cmp(&self, other: &Self) -> Ordering {
-        self.enabled.get().cmp(&other.enabled.get()).reverse().then(self.level.cmp(&other.level))
+        self.enabled.get().cmp(&other.enabled.get()).reverse().then(self.layer.cmp(&other.layer))
     }
 }
 

@@ -1,6 +1,6 @@
 extern crate alloc;
 use crate::{conn::Conn, pop::Pop};
-use core::{cell::Cell, cmp::{self, Ordering}, hash, ptr};
+use core::{cell::Cell, cmp, hash, ptr};
 use alloc::{rc::Rc, vec::Vec};
 use hashbrown::HashMap;
 
@@ -34,15 +34,28 @@ impl Accum {
 }
 
 pub trait Node {
-    fn level(&self) -> usize;
-    fn bias(&self) -> f32;
-    fn innov(&self) -> usize;
-}
+    /// Returns the [`Node`]'s `layer` in the [`Genome`].
+    fn layer(&self) -> usize;
 
-pub trait Trailable: Node {
-    fn update_level(&self, level: usize);
+    /// Returns the [`Node`]'s `bias`.
+    fn bias(&self) -> f32;
+
+    /// Returns the [`Node`]'s `innov`.
+    fn innov(&self) -> usize;
+
+    /// Updates the [`Node`]'s `layer` in the [`Genome`].
+    ///
+    /// # Panics
+    /// Panics if called on an [`Input`] node.
+    fn update_layer(&self, layer: usize);
+
+    /// Returns the [`Node`]'s activation based on the given input.
     fn activate(&self, x: f32) -> f32;
+
+    /// Returns the [`Node`]'s `response`.
     fn response(&self) -> f32;
+
+    /// Returns the [`Node`]'s aggregation function.
     fn aggregator(&self) -> fn(&[f32]) -> f32;
 }
 
@@ -55,11 +68,7 @@ pub struct Input {
 
 impl Input {
     pub fn new(idx: usize) -> Rc<Self> {
-        Rc::new(Self {
-            innov: Pop::next_node_innov(),
-            idx,
-            bias: 0.0,
-        })
+        Rc::new(Self { innov: Pop::next_node_innov(), idx, bias: f32::default() })
     }
 
     pub fn eval<const I: usize>(&self, weight: f32, inputs: [f32; I]) -> f32 {
@@ -68,14 +77,18 @@ impl Input {
 }
 
 impl Node for Input {
-    fn level(&self) -> usize { 0 }
+    fn layer(&self) -> usize { 0 }
     fn bias(&self) -> f32 { self.bias }
     fn innov(&self) -> usize { self.innov }
+    fn update_layer(&self, layer: usize) { panic!(); }
+    fn activate(&self, x: f32) -> f32 { panic!(); }
+    fn response(&self) -> f32 { panic!(); }
+    fn aggregator(&self) -> fn(&[f32]) -> f32 { panic!(); }
 }
 
 #[derive(Clone, Debug)]
 pub struct Hidden {
-    level: Cell<usize>,
+    layer: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
     aggregator: fn(&[f32]) -> f32,
     response: f32,
@@ -85,11 +98,11 @@ pub struct Hidden {
 
 impl Hidden {
     pub fn new(conn: &Conn) -> Rc<Self> {
-        let curr_level = conn.leading.level();
-        conn.trailing.update_level(curr_level + 1);
+        let curr_level = conn.leading.layer();
+        conn.trailing.update_layer(curr_level + 1);
 
         Rc::new(Self {
-            level: Cell::new(curr_level),
+            layer: Cell::new(curr_level),
             activation: Cell::new(|x| x),
             aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
             response: 1.0,
@@ -105,35 +118,19 @@ impl Hidden {
 }
 
 impl Node for Hidden {
-    fn level(&self) -> usize { self.level.get() }
+    fn layer(&self) -> usize { self.layer.get() }
     fn bias(&self) -> f32 { self.bias }
     fn innov(&self) -> usize { self.innov }
-}
-
-impl Trailable for Hidden {
-    fn update_level(&self, level: usize) {
-        self.level.update(|current| cmp::max(current, level));
-    }
-
-    fn activate(&self, x: f32) -> f32 {
-        self.activation.get()(x)
-    }
-
-    fn response(&self) -> f32 {
-        self.response
-    }
-
-    fn aggregator(&self) -> fn(&[f32]) -> f32 {
-        self.aggregator
-    }
+    fn update_layer(&self, layer: usize) { self.layer.update(|current| cmp::max(current, layer)); }
+    fn activate(&self, x: f32) -> f32 { self.activation.get()(x) }
+    fn response(&self) -> f32 { self.response }
+    fn aggregator(&self) -> fn(&[f32]) -> f32 { self.aggregator }
 }
 
 impl Eq for Hidden {}
 
 impl hash::Hash for Hidden {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        // self.level.get().hash(state);
-        // self.activation.get().hash(state);
         self.response.to_le_bytes().hash(state);
         self.bias.to_le_bytes().hash(state);
         self.innov.hash(state);
@@ -148,7 +145,7 @@ impl PartialEq for Hidden {
 
 #[derive(Debug, PartialEq)]
 pub struct Output {
-    level: Cell<usize>,
+    layer: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
     aggregator: fn(&[f32]) -> f32,
     response: f32,
@@ -159,7 +156,7 @@ pub struct Output {
 impl Output {
     pub fn new() -> Rc<Self> {
         Rc::new(Self {
-            level: 1.into(),
+            layer: 1.into(),
             activation: Cell::new(|x| x),
             aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
             response: 1.0,
@@ -175,34 +172,20 @@ impl Output {
 }
 
 impl Node for Output {
-    fn level(&self) -> usize { self.level.get() }
+    fn layer(&self) -> usize { self.layer.get() }
     fn bias(&self) -> f32 { self.bias }
     fn innov(&self) -> usize { self.innov }
-}
-
-impl Trailable for Output {
-    fn update_level(&self, level: usize) {
-        self.level.update(|current| cmp::max(current, level));
-    }
-
-    fn activate(&self, x: f32) -> f32 {
-        self.activation.get()(x)
-    }
-
-    fn response(&self) -> f32 {
-        self.response
-    }
-    
-    fn aggregator(&self) -> fn(&[f32]) -> f32 {
-        self.aggregator
-    }
+    fn update_layer(&self, layer: usize) { self.layer.update(|current| cmp::max(current, layer)); }
+    fn activate(&self, x: f32) -> f32 { self.activation.get()(x)}
+    fn response(&self) -> f32 { self.response }
+    fn aggregator(&self) -> fn(&[f32]) -> f32 { self.aggregator }
 }
 
 impl Eq for Output {}
 
 impl hash::Hash for Output {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.level.get().hash(state);
+        self.layer.get().hash(state);
         self.response.to_bits().hash(state);
         self.bias.to_bits().hash(state);
         self.innov.hash(state);
@@ -239,10 +222,10 @@ impl Leading {
 }
 
 impl Node for Leading {
-    fn level(&self) -> usize {
+    fn layer(&self) -> usize {
         match self {
-            Self::Input(input) => input.level(),
-            Self::Hidden(hidden) => hidden.level(),
+            Self::Input(input) => input.layer(),
+            Self::Hidden(hidden) => hidden.layer(),
         }
     }
 
@@ -259,6 +242,14 @@ impl Node for Leading {
             Self::Hidden(hidden) => hidden.innov(),
         }
     }
+
+    fn update_layer(&self, layer: usize) { todo!(); }
+
+    fn activate(&self, x: f32) -> f32 { todo!(); }
+
+    fn response(&self) -> f32 { todo!(); }
+
+    fn aggregator(&self) -> fn(&[f32]) -> f32 { todo!(); }
 }
 
 impl From<&Leading> for Leading {
@@ -318,10 +309,10 @@ impl Trailing {
 }
 
 impl Node for Trailing {
-    fn level(&self) -> usize {
+    fn layer(&self) -> usize {
         match self {
-            Self::Hidden(hidden) => hidden.level(),
-            Self::Output(output) => output.level(),
+            Self::Hidden(hidden) => hidden.layer(),
+            Self::Output(output) => output.layer(),
         }
     }
 
@@ -338,13 +329,11 @@ impl Node for Trailing {
             Self::Output(output) => output.innov(),
         }
     }
-}
 
-impl Trailable for Trailing {
-    fn update_level(&self, level: usize) {
+    fn update_layer(&self, layer: usize) {
         match self {
-            Self::Hidden(hidden) => hidden.update_level(level),
-            Self::Output(output) => output.update_level(level),
+            Self::Hidden(hidden) => hidden.update_layer(layer),
+            Self::Output(output) => output.update_layer(layer),
         }
     }
 
@@ -400,24 +389,12 @@ impl From<&Rc<Output>> for Trailing {
     }
 }
 
-impl Ord for Trailing {
-    fn cmp(&self, other: &Self) -> Ordering {
-        todo!();
-    }
-}
-
 impl PartialEq<Leading> for Trailing {
     fn eq(&self, other: &Leading) -> bool {
         match (self, other) {
             (Self::Hidden(lhs), Leading::Hidden(rhs)) => lhs == rhs,
             _ => false
         }
-    }
-}
-
-impl PartialOrd for Trailing {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 
