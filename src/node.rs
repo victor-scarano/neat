@@ -365,18 +365,6 @@ impl From<&Trailing> for Trailing {
     }
 }
 
-impl From<Rc<Hidden>> for Trailing {
-    fn from(value: Rc<Hidden>) -> Self {
-        Self::Hidden(value)
-    }
-}
-
-impl From<Rc<Output>> for Trailing {
-    fn from(value: Rc<Output>) -> Self {
-        Self::Output(value)
-    }
-}
-
 impl From<&Rc<Hidden>> for Trailing {
     fn from(value: &Rc<Hidden>) -> Self {
         Self::Hidden(value.clone())
