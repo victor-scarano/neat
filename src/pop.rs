@@ -4,7 +4,7 @@ use core::cell::*;
 use hashbrown::HashMap;
 
 #[thread_local]
-static CONNS: LazyCell<RefCell<HashMap<(usize, usize), usize>>> = LazyCell::new(Default::default);
+static CONNS: LazyCell<RefCell<HashMap<(usize, usize), usize>>> = LazyCell::new(|| RefCell::new(HashMap::new()));
 #[thread_local]
 static NODES: Cell<usize> = Cell::new(0);
 

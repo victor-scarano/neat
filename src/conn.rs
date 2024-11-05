@@ -1,6 +1,7 @@
 use crate::{node::*, pop::Pop};
 use core::{cell::Cell, cmp::Ordering, fmt};
 
+#[derive(Clone)]
 pub struct Conn {
     pub leading: Leading,
     pub trailing: Trailing,

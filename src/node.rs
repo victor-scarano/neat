@@ -59,7 +59,7 @@ pub trait Node {
     fn aggregator(&self) -> fn(&[f32]) -> f32;
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Input {
     innov: usize,
     pub idx: usize,
@@ -143,7 +143,7 @@ impl PartialEq for Hidden {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Output {
     layer: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
