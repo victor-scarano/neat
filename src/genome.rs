@@ -1,7 +1,7 @@
 extern crate alloc;
-use crate::{conn::Conn, node::*};
+use crate::{conn::*, node::*};
 use core::{array, cell::RefCell, fmt, mem};
-use alloc::{boxed::Box, collections::BTreeSet, rc::Rc, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use hashbrown::{HashMap, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
@@ -9,7 +9,7 @@ pub struct Genome<const I: usize, const O: usize> {
     pub inputs: Box<[Rc<Input>; I]>,
     pub hiddens: HashSet<Rc<Hidden>>,
     pub outputs: Box<[Rc<Output>; O]>,
-    pub conns: BTreeSet<Conn>,
+    pub conns: Conns,
     pub fitness: f32,
 }
 
@@ -26,7 +26,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             inputs: Box::new(array::from_fn::<_, I, _>(|idx| Input::new(idx))),
             hiddens: HashSet::new(),
             outputs: Box::new(array::from_fn::<_, O, _>(|_| Output::new())),
-            conns: BTreeSet::new(),
+            conns: Conns::new(),
             fitness: f32::default(),
         }
     }
@@ -49,9 +49,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             .choose_stable(rng)
             .unwrap();
 
-        let conn = Conn::new(leading, trailing);
-        let inserted = self.conns.insert(conn);
-        assert!(inserted);
+        self.conns.insert(Conn::new(leading, trailing));
     }
 
     /// As per [Stanley's paper](https://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf), an existing [`Conn`] is
@@ -64,7 +62,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     /// - If the first new `Conn` was not inserted.
     /// - If the second new `Conn` was not inserted.
     pub fn mutate_split_conn(&mut self, rng: &mut impl Rng) {
-        let conn = self.conns.iter()
+        let conn = self.conns.iter_unordered()
             .filter(|conn| conn.enabled.get())
             .choose_stable(rng)
             .unwrap();
@@ -76,11 +74,8 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         let first = Conn::new(&conn.leading, middle);
         let last = Conn::new(middle, &conn.trailing);
 
-        let inserted = self.conns.insert(first);
-        assert!(inserted);
-
-        let inserted = self.conns.insert(last);
-        assert!(inserted);
+        self.conns.insert(first);
+        self.conns.insert(last);
     }
 
     pub fn mutate_weight(&mut self) {
@@ -92,7 +87,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn activate(&self, inputs: [f32; I]) -> [f32; O] {
         let mut map = HashMap::new();
 
-        for conn in self.conns.iter().take_while(|conn| conn.enabled.get()) {
+        for conn in self.conns.iter_ordered().take_while(|conn| conn.enabled.get()) {
             let eval = match conn.leading {
                 Leading::Input(ref input) => input.eval(conn.weight, inputs),
                 Leading::Hidden(ref hidden) => hidden.eval(conn.weight, &mut map),
@@ -121,7 +116,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             mem::swap(&mut lhs, &mut rhs);
         }
 
-        let matching = lhs.conns.intersection(&rhs.conns).map(|key| {
+        let matching = lhs.conns.innov_intersection(&rhs.conns).map(|key| {
             let choice = match lhs.fitness == rhs.fitness {
                 true => rng.borrow_mut().gen(),
                 false => rng.borrow_mut().gen_bool(MATCHING_PREF),
@@ -132,18 +127,18 @@ impl<const I: usize, const O: usize> Genome<I, O> {
                 false => &lhs,
             };
 
-            parent.conns.get(key).unwrap()
+            parent.conns.get(key)
         });
 
         let disjoint: Box<dyn Iterator<Item = &Conn>> = if lhs.fitness == rhs.fitness {
-            Box::new(lhs.conns.symmetric_difference(&rhs.conns).filter_map(|conn| rng.borrow_mut().gen_bool(0.5).then_some(conn)))
+            Box::new(lhs.conns.innov_symmetric_difference(&rhs.conns).filter_map(|conn| rng.borrow_mut().gen_bool(0.5).then_some(conn)))
         } else {
-            Box::new(rhs.conns.difference(&lhs.conns))
+            Box::new(rhs.conns.innov_difference(&lhs.conns))
         };
 
-        let conns = BTreeSet::from_iter(matching.chain(disjoint).cloned());
+        let conns = Conns::from_conns_iter(matching.chain(disjoint));
 
-        for conn in conns.iter().take_while(|conn| conn.enabled.get()) {
+        for conn in conns.iter_unordered() {
             match conn.leading {
                 Leading::Input(ref input) => {
                     let new = Rc::new(Input::clone(input));
@@ -193,7 +188,7 @@ impl<const I: usize, const G: usize> fmt::Debug for Genome<I, G> {
             .field_with("outputs", |f| self.outputs.iter().fold(&mut f.debug_map(), |f, output| {
                 f.key_with(|f| fmt::Pointer::fmt(output, f)).value(output)
             }).finish())
-            .field_with("conns", |f| f.debug_list().entries(self.conns.iter()).finish())
+            .field_with("conns", |f| f.debug_list().entries(self.conns.iter_ordered()).finish())
             .finish()
     }
 }

@@ -1,5 +1,9 @@
+
+extern crate alloc;
 use crate::{node::*, pop::Pop};
-use core::{cell::Cell, cmp::Ordering, fmt};
+use core::{cell::Cell, cmp::Ordering, fmt, hash};
+use alloc::{collections::BTreeSet, rc::Rc};
+use hashbrown::HashSet;
 
 #[derive(Clone)]
 pub struct Conn {
@@ -53,11 +57,19 @@ impl fmt::Debug for Conn {
     }
 }
 
+impl hash::Hash for Conn {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        todo!();
+    }
+}
+
 impl Ord for Conn {
     /// Orders enabled [`Conn`]s to the front and disabled `Conn`s to the back. Within both groups, `Conn`s are ordered
     /// by level.
     fn cmp(&self, other: &Self) -> Ordering {
-        self.enabled.get().cmp(&other.enabled.get()).reverse().then(self.layer.cmp(&other.layer))
+        self.enabled.get().cmp(&other.enabled.get())
+            .reverse()
+            .then(self.layer.cmp(&other.layer))
     }
 }
 
@@ -71,6 +83,58 @@ impl PartialEq for Conn {
 impl PartialOrd for Conn {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+pub struct Conns {
+    btree: BTreeSet<Rc<Conn>>,
+    hash: HashSet<Rc<Conn>>,
+}
+
+impl Conns {
+    pub fn new() -> Self {
+        Self {
+            btree: BTreeSet::new(),
+            hash: HashSet::new(),
+        }
+    }
+
+    pub fn from_conns_iter(conns: impl Iterator<Item = &Conn>) -> Self {
+        todo!()
+    }
+
+    pub fn get(&self, conn: &Conn) -> &Conn {
+        self.hash.get(conn).unwrap()
+    }
+
+    pub fn insert(&mut self, conn: Conn) {
+        let conn = Rc::new(conn);
+
+        let inserted = self.btree.insert(conn.clone());
+        assert!(inserted);
+
+        let inserted = self.hash.insert(conn);
+        assert!(inserted);
+    }
+
+    pub fn iter_ordered(&self) -> impl Iterator<Item = &Conn> {
+        self.btree.iter().map(<Rc<Conn> as AsRef<Conn>>::as_ref)
+    }
+
+    pub fn iter_unordered(&self) -> impl Iterator<Item = &Conn> {
+        self.hash.iter().map(<Rc<Conn> as AsRef<Conn>>::as_ref)
+    }
+
+    pub fn innov_difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
+        self.hash.difference(&other.hash).map(<Rc<Conn> as AsRef<Conn>>::as_ref)
+    }
+
+    pub fn innov_intersection<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
+        self.hash.intersection(&other.hash).map(<Rc<Conn> as AsRef<Conn>>::as_ref)
+    }
+
+    pub fn innov_symmetric_difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
+        self.hash.symmetric_difference(&other.hash).map(<Rc<Conn> as AsRef<Conn>>::as_ref)
     }
 }
 
