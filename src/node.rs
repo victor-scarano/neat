@@ -62,17 +62,22 @@ pub trait Node {
 #[derive(Clone, Debug)]
 pub struct Input {
     innov: usize,
-    pub idx: usize,
     bias: f32,
 }
 
 impl Input {
-    pub fn new(idx: usize) -> Rc<Self> {
-        Rc::new(Self { innov: Pop::next_node_innov(), idx, bias: f32::default() })
+    pub fn new(innov: usize) -> Rc<Self> {
+        Pop::next_node_innov();
+        Rc::new(Self { innov, bias: f32::default() })
+    }
+
+    // we can use self.innov as the idx for any input node
+    pub fn idx(&self) -> usize {
+        self.innov
     }
 
     pub fn eval<const I: usize>(&self, weight: f32, inputs: [f32; I]) -> f32 {
-        weight * (self.bias() + inputs[self.idx])
+        weight * (self.bias() + inputs[self.idx()])
     }
 }
 
@@ -154,14 +159,15 @@ pub struct Output {
 }
 
 impl Output {
-    pub fn new() -> Rc<Self> {
+    pub fn new(innov: usize) -> Rc<Self> {
+        Pop::next_node_innov();
         Rc::new(Self {
             layer: 1.into(),
             activation: Cell::new(|x| x),
             aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
             response: 1.0,
             bias: 0.0,
-            innov: Pop::next_node_innov(),
+            innov,
         })
     }
 

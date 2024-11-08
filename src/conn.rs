@@ -64,19 +64,21 @@ impl hash::Hash for Conn {
 }
 
 impl Ord for Conn {
-    /// Orders enabled [`Conn`]s to the front and disabled `Conn`s to the back. Within both groups, `Conn`s are ordered
-    /// by level.
+    /// Orders enabled [`Conn`]s to the front and disabled `Conn`s to the back.
+    /// Within both groups, `Conn`s are ordered by level.
     fn cmp(&self, other: &Self) -> Ordering {
-        self.enabled.get().cmp(&other.enabled.get())
+        self.enabled.get()
+            .cmp(&other.enabled.get())
             .reverse()
             .then(self.layer.cmp(&other.layer))
+            .then(self.innov.cmp(&other.innov))
     }
 }
 
 // used to be equal if innovations were equal, but needs to reflect ord impl
 impl PartialEq for Conn {
     fn eq(&self, other: &Self) -> bool {
-        self.cmp(other).is_eq()
+        self.cmp(other).is_eq() && self.innov == other.innov
     }
 }
 
@@ -99,8 +101,10 @@ impl Conns {
     }
 
     pub fn from_conns_iter(conns: impl Iterator<Item = &Conn>) -> Self {
+        let count = conns.size_hint().1.unwrap();
         let btree = BTreeSet::from_iter(conns.map(|conn| Rc::new(conn.clone())));
         let hash = HashSet::from_iter(btree.iter().cloned());
+        assert_eq!(btree.len(), hash.len());
         Self { btree, hash }
     }
 

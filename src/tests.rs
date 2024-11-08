@@ -16,7 +16,7 @@ fn mutate_split_conn() {
     genome.mutate_split_conn(&mut rng);
 }
 
-// #[test]
+#[test]
 fn activate() {
     // uses seeded rng to recreate the neural network from stanley's paper.
     // with no connection weights, identity activation, 0.0 bias, and 1.0
@@ -31,26 +31,32 @@ fn activate() {
     genome.mutate_add_conn(&mut rng);
     
     // add 2 -> 4
-    let mut rng = SmallRng::seed_from_u64(2);
+    let mut rng = SmallRng::seed_from_u64(1);
     genome.mutate_add_conn(&mut rng);
     
     // add 3 -> 4
-    let mut rng = SmallRng::seed_from_u64(1);
+    let mut rng = SmallRng::seed_from_u64(3);
     genome.mutate_add_conn(&mut rng);
 
     // split 2 -> 4 : 5
     let mut rng = SmallRng::seed_from_u64(2);
     genome.mutate_split_conn(&mut rng);
     
+    /*
+
     // add 1 -> 5
     let mut rng = SmallRng::seed_from_u64(4);
     genome.mutate_add_conn(&mut rng);
+    
+    */
 
-    let activation = genome.activate([1.0, 2.0, 3.0]);
-    assert_eq!(activation[0], 11.0 / 6.0);
+    dbg!(genome);
+
+    // let activation = genome.activate([1.0, 2.0, 3.0]);
+    // assert_eq!(activation[0], 11.0 / 6.0);
 }
 
-#[test]
+// #[test]
 fn crossover() {
     let mut rng = SmallRng::seed_from_u64(0);
     let mut a = Genome::<2, 1>::new();

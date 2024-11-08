@@ -23,9 +23,9 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         assert_ne!(O, 0);
 
         Self {
-            inputs: Box::new(array::from_fn::<_, I, _>(|idx| Input::new(idx))),
+            inputs: Box::new(array::from_fn::<_, I, _>(|innov| Input::new(innov))),
             hiddens: HashSet::new(),
-            outputs: Box::new(array::from_fn::<_, O, _>(|_| Output::new())),
+            outputs: Box::new(array::from_fn::<_, O, _>(|innov| Output::new(I + innov))),
             conns: Conns::new(),
             fitness: f32::default(),
         }
@@ -40,16 +40,15 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn mutate_add_conn(&mut self, rng: &mut impl Rng) {
         let leading = self.inputs.iter().map(Leading::from)
             .chain(self.hiddens.iter().map(Leading::from))
-            .choose_stable(rng)
-            .unwrap();
+            .choose_stable(rng).unwrap();
 
         let trailing = self.hiddens.iter().map(Trailing::from)
             .chain(self.outputs.iter().map(Trailing::from))
             .filter(|trailing| *trailing != leading)
-            .choose_stable(rng)
-            .unwrap();
+            .choose_stable(rng).unwrap();
 
-        self.conns.insert(Conn::new(leading, trailing));
+        let conn = Conn::new(leading, trailing);
+        self.conns.insert(conn);
     }
 
     /// As per [Stanley's paper](https://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf), an existing [`Conn`] is
@@ -118,11 +117,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         let matching = lhs.conns.hash_intersection(&rhs.conns).map(|key| {
             let choice = match lhs.fitness == rhs.fitness {
                 false => rng.borrow_mut().gen_bool(MATCHING_PREF),
-                true => {
-                    let temp = rng.borrow_mut().gen();
-                    dbg!(&temp);
-                    temp
-                },
+                true => rng.borrow_mut().gen(),
             };
 
             let parent = match choice {
@@ -133,17 +128,17 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             parent.conns.get(key)
         });
 
-        let disjoint: Box<dyn Iterator<Item = &Conn>> = match lhs.fitness == rhs.fitness {
+        let disjoint: Box<dyn Iterator<Item = &Conn>> = match lhs.fitness == rhs.fitness { // use == in release
             false => Box::new(rhs.conns.hash_difference(&lhs.conns)),
             true => Box::new(lhs.conns
                 .hash_symmetric_difference(&rhs.conns)
-                .filter_map(|conn| rng.borrow_mut().gen_bool(0.5).then_some(conn))),
+                .filter_map(|conn| rng.borrow_mut().gen::<bool>().then_some(conn))),
         };
 
         let conns = Conns::from_conns_iter(matching.chain(disjoint));
 
         for conn in conns.iter_ordered() { // use unordered after debugging
-            dbg!(&conn.leading);
+            dbg!(&conn.trailing);
 
             match conn.leading {
                 Leading::Input(ref input) => {
