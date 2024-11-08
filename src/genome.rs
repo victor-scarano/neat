@@ -1,6 +1,6 @@
 extern crate alloc;
 use crate::{conn::*, node::*};
-use core::{array, cell::RefCell, fmt, mem};
+use core::{array, cmp, fmt, mem};
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use hashbrown::{HashMap, HashSet};
 use rand::{Rng, seq::IteratorRandom};
@@ -14,29 +14,19 @@ pub struct Genome<const I: usize, const O: usize> {
 }
 
 impl<const I: usize, const O: usize> Genome<I, O> {
-    /// Creates a new [`Genome`].
-    ///
-    /// # Panics
-    /// Panics if either `Genome::I` or `Genome::O` is 0.
     pub fn new() -> Self {
         assert_ne!(I, 0);
         assert_ne!(O, 0);
 
         Self {
             inputs: Box::new(array::from_fn::<_, I, _>(|innov| Input::new(innov))),
-            hiddens: HashSet::new(),
+            hiddens: HashSet::default(),
             outputs: Box::new(array::from_fn::<_, O, _>(|innov| Output::new(I + innov))),
-            conns: Conns::new(),
+            conns: Conns::default(),
             fitness: f32::default(),
         }
     }
 
-    /// Creates a [`Conn`] out of two previously unconnected nodes and inserts it into the [`Genome`].
-    ///
-    /// # Panics
-    /// - If there are no [`Leading`] nodes in the `Genome`
-    /// - If there are no [`Trailing`] nodes in the `Genome` that aren't the same as the selected `Leading` node.
-    /// - If the new `Conn` was not inserted.
     pub fn mutate_add_conn(&mut self, rng: &mut impl Rng) {
         let leading = self.inputs.iter().map(Leading::from)
             .chain(self.hiddens.iter().map(Leading::from))
@@ -51,23 +41,16 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         self.conns.insert(conn);
     }
 
-    /// As per [Stanley's paper](https://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf), an existing [`Conn`] is
-    /// split into two new ones, joined by a new node, all of which are inserted into the [`Genome`]. The old `Conn` is
-    /// disabled, the `Conn` leading into the new node recieves a weight of 1, and the `Conn` leading out of the new
-    /// node receives the same weight as the old `Conn`.
-    ///
-    /// # Panics
-    /// - If there are no enabled [`Conn`]s to split from.
-    /// - If the first new `Conn` was not inserted.
-    /// - If the second new `Conn` was not inserted.
     pub fn mutate_split_conn(&mut self, rng: &mut impl Rng) {
-        let conn = self.conns.iter_unordered()
+        // iter ordered here to ensure that the randomly chosen conn is consistent
+        let conn = self.conns.iter_ordered()
             .filter(|conn| conn.enabled.get())
-            .choose_stable(rng)
-            .unwrap();
+            .choose_stable(rng).unwrap();
 
         conn.enabled.set(false);
 
+        // must always insert, but cant check to make sure it inserted
+        // ideally we want an insert_and_get -> Option<&Hidden> so we can check
         let middle = self.hiddens.get_or_insert(Hidden::new(conn));
 
         let first = Conn::new(&conn.leading, middle);
@@ -81,8 +64,6 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         todo!()
     }
 
-    /// Evaluates the [`Genome`] by propagating the set of `inputs` up the `Genome`'s layers of nodes, modifying the
-    /// them using weights and biases as they go.
     pub fn activate(&self, inputs: [f32; I]) -> [f32; O] {
         let mut map = HashMap::new();
 
@@ -104,7 +85,6 @@ impl<const I: usize, const O: usize> Genome<I, O> {
 
     pub fn crossover(mut lhs: Self, mut rhs: Self, rng: &mut impl Rng) -> Self {
         const MATCHING_PREF: f64 = 2.0 / 3.0;
-        let rng = RefCell::new(rng);
 
         if lhs.fitness > rhs.fitness {
             mem::swap(&mut lhs, &mut rhs);
@@ -114,10 +94,11 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         let mut hiddens = HashSet::with_capacity(lhs.hiddens.len() + rhs.hiddens.len());
         let mut outputs = Vec::with_capacity(O);
 
-        let matching = lhs.conns.hash_intersection(&rhs.conns).map(|key| {
+        let mut matching = Vec::with_capacity(cmp::max(lhs.conns.len(), rhs.conns.len()));
+        lhs.conns.hash_intersection(&rhs.conns).map(|key| {
             let choice = match lhs.fitness == rhs.fitness {
-                false => rng.borrow_mut().gen_bool(MATCHING_PREF),
-                true => rng.borrow_mut().gen(),
+                false => rng.gen_bool(MATCHING_PREF),
+                true => rng.gen(),
             };
 
             let parent = match choice {
@@ -126,18 +107,15 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             };
 
             parent.conns.get(key)
-        });
+        }).collect_into(&mut matching);
 
-        let disjoint: Box<dyn Iterator<Item = &Conn>> = match lhs.fitness == rhs.fitness { // use == in release
-            false => Box::new(rhs.conns.hash_difference(&lhs.conns)),
-            true => Box::new(lhs.conns
-                .hash_symmetric_difference(&rhs.conns)
-                .filter_map(|conn| rng.borrow_mut().gen::<bool>().then_some(conn))),
+        let mut disjoint = Vec::with_capacity(lhs.conns.len() + rhs.conns.len());
+        match lhs.fitness == rhs.fitness {
+            false => rhs.conns.hash_difference(&lhs.conns).collect_into(&mut disjoint),
+            true => lhs.conns.hash_symmetric_difference(&rhs.conns).filter(|_| rng.gen()).collect_into(&mut disjoint),
         };
 
-        let conns = Conns::from_conns_iter(matching.chain(disjoint));
-
-        for conn in conns.iter_ordered() { // use unordered after debugging
+        for conn in matching.iter().chain(disjoint.iter()) { // use unordered after debugging
             dbg!(&conn.trailing);
 
             match conn.leading {
@@ -170,7 +148,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             inputs: inputs.try_into().unwrap(),
             hiddens,
             outputs: outputs.try_into().unwrap(),
-            conns,
+            conns: Conns::from_matching_disjoint(matching, disjoint),
             fitness: f32::default(),
         }
     }

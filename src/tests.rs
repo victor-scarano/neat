@@ -19,17 +19,14 @@ fn mutate_split_conn() {
 #[test]
 fn activate() {
     // uses seeded rng to recreate the neural network from stanley's paper.
-    // with no connection weights, identity activation, 0.0 bias, and 1.0
-    // response, and average aggregator for all nodes, the genome's activation
-    // should be 11/6. IT PASSES TESTS!!!! :))
-    // TODO: changed from std rng to small rng, need to change seeds
+    // note: does not model the recurrent connection
 
     let mut genome = Genome::<3, 1>::new();
 
     // add 1 -> 4
     let mut rng = SmallRng::seed_from_u64(0);
     genome.mutate_add_conn(&mut rng);
-    
+
     // add 2 -> 4
     let mut rng = SmallRng::seed_from_u64(1);
     genome.mutate_add_conn(&mut rng);
@@ -39,21 +36,14 @@ fn activate() {
     genome.mutate_add_conn(&mut rng);
 
     // split 2 -> 4 : 5
-    let mut rng = SmallRng::seed_from_u64(2);
+    let mut rng = SmallRng::seed_from_u64(1);
     genome.mutate_split_conn(&mut rng);
     
-    /*
-
     // add 1 -> 5
-    let mut rng = SmallRng::seed_from_u64(4);
+    let mut rng = SmallRng::seed_from_u64(0);
     genome.mutate_add_conn(&mut rng);
     
-    */
-
     dbg!(genome);
-
-    // let activation = genome.activate([1.0, 2.0, 3.0]);
-    // assert_eq!(activation[0], 11.0 / 6.0);
 }
 
 // #[test]

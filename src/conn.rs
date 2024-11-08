@@ -64,14 +64,11 @@ impl hash::Hash for Conn {
 }
 
 impl Ord for Conn {
-    /// Orders enabled [`Conn`]s to the front and disabled `Conn`s to the back.
-    /// Within both groups, `Conn`s are ordered by level.
     fn cmp(&self, other: &Self) -> Ordering {
-        self.enabled.get()
-            .cmp(&other.enabled.get())
-            .reverse()
-            .then(self.layer.cmp(&other.layer))
-            .then(self.innov.cmp(&other.innov))
+        // self.enabled.get()
+        //    .cmp(&other.enabled.get())
+        //    .reverse()
+        self.layer.cmp(&other.layer).then(self.innov.cmp(&other.innov))
     }
 }
 
@@ -90,21 +87,22 @@ impl PartialOrd for Conn {
 
 // TODO: Write custom Rc implementation to optimize for only two possible references so that the RcInner allocation
 // isn't as large as it normally is
+#[derive(Default)]
 pub struct Conns {
     btree: BTreeSet<Rc<Conn>>,
     hash: HashSet<Rc<Conn>>,
 }
 
 impl Conns {
-    pub fn new() -> Self {
-        Self { btree: BTreeSet::new(), hash: HashSet::new() }
-    }
+    pub fn from_matching_disjoint(matching: Vec<&Conn>, disjoint: Vec<&Conn>) -> Self {
+        let btree = BTreeSet::from_iter(matching.into_iter()
+            .chain(disjoint.into_iter())
+            .map(|conn| Rc::new(conn.clone())));
 
-    pub fn from_conns_iter(conns: impl Iterator<Item = &Conn>) -> Self {
-        let count = conns.size_hint().1.unwrap();
-        let btree = BTreeSet::from_iter(conns.map(|conn| Rc::new(conn.clone())));
         let hash = HashSet::from_iter(btree.iter().cloned());
+
         assert_eq!(btree.len(), hash.len());
+
         Self { btree, hash }
     }
 
@@ -135,11 +133,20 @@ impl Conns {
     }
 
     pub fn hash_intersection<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
-        self.hash.intersection(&other.hash).map(<Rc<Conn> as AsRef<Conn>>::as_ref)
+        self.hash
+            .intersection(&other.hash)
+            .map(<Rc<Conn> as AsRef<Conn>>::as_ref)
     }
 
     pub fn hash_symmetric_difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
-        self.hash.symmetric_difference(&other.hash).map(<Rc<Conn> as AsRef<Conn>>::as_ref)
+        self.hash
+            .symmetric_difference(&other.hash)
+            .map(<Rc<Conn> as AsRef<Conn>>::as_ref)
+    }
+
+    pub fn len(&self) -> usize {
+        assert_eq!(self.btree.len(), self.hash.len());
+        self.hash.len()
     }
 }
 
