@@ -56,18 +56,24 @@ fn crossover() {
     let mut a = Genome::<2, 1>::new();
     a.mutate_add_conn(&mut rng);
     a.mutate_split_conn(&mut rng);
-    println!("{}", "A".repeat(60));
-    for conn in a.conns.iter() { dbg!(conn); }
 
     let mut rng = SmallRng::seed_from_u64(1);
     let mut b = Genome::<2, 1>::new();
     b.mutate_add_conn(&mut rng);
     b.mutate_split_conn(&mut rng);
-    println!("{}", "B".repeat(60));
-    for conn in b.conns.iter() { dbg!(conn); }
+
+    println!("{}", "A".repeat(99));
+    for conn in a.conns.iter_ordered() {
+        dbg!(conn);
+    }
+    println!();
+
+    println!("{}", "B".repeat(99));
+    for conn in b.conns.iter_ordered() {
+        dbg!(conn);
+    }
+    println!("\n{}", "CROSSOVER ".repeat(10));
 
     let mut rng = SmallRng::seed_from_u64(2);
-    println!("{}", "C".repeat(60));
     let child = Genome::crossover(a, b, &mut rng);
-    dbg!(&child);
 }

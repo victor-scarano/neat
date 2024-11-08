@@ -104,41 +104,47 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     }
 
     pub fn crossover(mut lhs: Self, mut rhs: Self, rng: &mut impl Rng) -> Self {
-        let rng = RefCell::new(rng);
-
         const MATCHING_PREF: f64 = 2.0 / 3.0;
-
-        let mut inputs = Vec::with_capacity(I);
-        let mut hiddens = HashSet::new();
-        let mut outputs = Vec::with_capacity(O);
+        let rng = RefCell::new(rng);
 
         if lhs.fitness > rhs.fitness {
             mem::swap(&mut lhs, &mut rhs);
         }
+        
+        let mut inputs = Vec::with_capacity(I);
+        let mut hiddens = HashSet::with_capacity(lhs.hiddens.len() + rhs.hiddens.len());
+        let mut outputs = Vec::with_capacity(O);
 
-        let matching = lhs.conns.innov_intersection(&rhs.conns).map(|key| {
+        let matching = lhs.conns.hash_intersection(&rhs.conns).map(|key| {
             let choice = match lhs.fitness == rhs.fitness {
-                true => rng.borrow_mut().gen(),
                 false => rng.borrow_mut().gen_bool(MATCHING_PREF),
+                true => {
+                    let temp = rng.borrow_mut().gen();
+                    dbg!(&temp);
+                    temp
+                },
             };
 
             let parent = match choice {
-                true => &rhs,
                 false => &lhs,
+                true => &rhs,
             };
 
             parent.conns.get(key)
         });
 
-        let disjoint: Box<dyn Iterator<Item = &Conn>> = if lhs.fitness == rhs.fitness {
-            Box::new(lhs.conns.innov_symmetric_difference(&rhs.conns).filter_map(|conn| rng.borrow_mut().gen_bool(0.5).then_some(conn)))
-        } else {
-            Box::new(rhs.conns.innov_difference(&lhs.conns))
+        let disjoint: Box<dyn Iterator<Item = &Conn>> = match lhs.fitness == rhs.fitness {
+            false => Box::new(rhs.conns.hash_difference(&lhs.conns)),
+            true => Box::new(lhs.conns
+                .hash_symmetric_difference(&rhs.conns)
+                .filter_map(|conn| rng.borrow_mut().gen_bool(0.5).then_some(conn))),
         };
 
         let conns = Conns::from_conns_iter(matching.chain(disjoint));
 
-        for conn in conns.iter_unordered() {
+        for conn in conns.iter_ordered() { // use unordered after debugging
+            dbg!(&conn.leading);
+
             match conn.leading {
                 Leading::Input(ref input) => {
                     let new = Rc::new(Input::clone(input));

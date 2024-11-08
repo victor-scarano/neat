@@ -59,7 +59,7 @@ impl fmt::Debug for Conn {
 
 impl hash::Hash for Conn {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        todo!();
+        self.innov.hash(state);
     }
 }
 
@@ -86,6 +86,8 @@ impl PartialOrd for Conn {
     }
 }
 
+// TODO: Write custom Rc implementation to optimize for only two possible references so that the RcInner allocation
+// isn't as large as it normally is
 pub struct Conns {
     btree: BTreeSet<Rc<Conn>>,
     hash: HashSet<Rc<Conn>>,
@@ -93,14 +95,13 @@ pub struct Conns {
 
 impl Conns {
     pub fn new() -> Self {
-        Self {
-            btree: BTreeSet::new(),
-            hash: HashSet::new(),
-        }
+        Self { btree: BTreeSet::new(), hash: HashSet::new() }
     }
 
     pub fn from_conns_iter(conns: impl Iterator<Item = &Conn>) -> Self {
-        todo!()
+        let btree = BTreeSet::from_iter(conns.map(|conn| Rc::new(conn.clone())));
+        let hash = HashSet::from_iter(btree.iter().cloned());
+        Self { btree, hash }
     }
 
     pub fn get(&self, conn: &Conn) -> &Conn {
@@ -125,15 +126,15 @@ impl Conns {
         self.hash.iter().map(<Rc<Conn> as AsRef<Conn>>::as_ref)
     }
 
-    pub fn innov_difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
+    pub fn hash_difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
         self.hash.difference(&other.hash).map(<Rc<Conn> as AsRef<Conn>>::as_ref)
     }
 
-    pub fn innov_intersection<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
+    pub fn hash_intersection<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
         self.hash.intersection(&other.hash).map(<Rc<Conn> as AsRef<Conn>>::as_ref)
     }
 
-    pub fn innov_symmetric_difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
+    pub fn hash_symmetric_difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Conn> {
         self.hash.symmetric_difference(&other.hash).map(<Rc<Conn> as AsRef<Conn>>::as_ref)
     }
 }
