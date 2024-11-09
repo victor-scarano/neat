@@ -171,6 +171,10 @@ impl Output {
         })
     }
 
+    pub fn idx<const I: usize>(&self) -> usize {
+        self.innov - I
+    }
+
     pub fn eval(self: &Rc<Self>, map: &mut HashMap<Trailing, Accum>) -> f32 {
         let input = map.get_mut(&Trailing::from(self)).unwrap().eval(self.aggregator);
         self.activate(self.bias() + (self.response() * input))

@@ -94,7 +94,35 @@ pub struct Conns {
 }
 
 impl Conns {
-    pub fn from_matching_disjoint(matching: Vec<&Conn>, disjoint: Vec<&Conn>) -> Self {
+    // probably optimizable
+    pub fn clone_from<const I: usize, const O: usize>(
+        &self,
+        inputs: &[Rc<Input>; I],
+        hiddens: &HashSet<Rc<Hidden>>,
+        outputs: &[Rc<Output>; O],
+    ) -> Self {
+        let btree = BTreeSet::from_iter(self.btree.iter().cloned().map(|mut conn| {
+            conn.leading = match conn.leading {
+                Leading::Input(ref input) => Leading::Input(inputs[input.idx()]),
+                Leading::Hidden(ref hidden) => Leading::Hidden(*hiddens.get(hidden).unwrap()),
+            };
+
+            conn.trailing = match conn.trailing {
+                Trailing::Hidden(ref hidden) => Trailing::Hidden(*hiddens.get(hidden).unwrap()),
+                Trailing::Output(ref output) => Trailing::Output(outputs[output.idx::<I>()]),
+            };
+
+            conn
+        }));
+
+        let hash = HashSet::from_iter(btree.iter().cloned());
+
+        assert_eq!(btree.len(), hash.len());
+
+        Self { btree, hash }
+    }
+
+    pub fn from(matching: Vec<&Conn>, disjoint: Vec<&Conn>) -> Self {
         let btree = BTreeSet::from_iter(matching.into_iter()
             .chain(disjoint.into_iter())
             .map(|conn| Rc::new(conn.clone())));

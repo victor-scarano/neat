@@ -1,14 +1,14 @@
 extern crate alloc;
 use crate::{conn::*, node::*};
 use core::{array, cmp, fmt, mem};
-use alloc::{boxed::Box, rc::Rc, vec::Vec};
+use alloc::{boxed::ThinBox, rc::Rc, vec::Vec};
 use hashbrown::{HashMap, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
 pub struct Genome<const I: usize, const O: usize> {
-    pub inputs: Box<[Rc<Input>; I]>,
+    pub inputs: ThinBox<[Rc<Input>; I]>,
     pub hiddens: HashSet<Rc<Hidden>>,
-    pub outputs: Box<[Rc<Output>; O]>,
+    pub outputs: ThinBox<[Rc<Output>; O]>,
     pub conns: Conns,
     pub fitness: f32,
 }
@@ -19,9 +19,9 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         assert_ne!(O, 0);
 
         Self {
-            inputs: Box::new(array::from_fn::<_, I, _>(|innov| Input::new(innov))),
+            inputs: ThinBox::new(array::from_fn::<_, I, _>(|innov| Input::new(innov))),
             hiddens: HashSet::default(),
-            outputs: Box::new(array::from_fn::<_, O, _>(|innov| Output::new(I + innov))),
+            outputs: ThinBox::new(array::from_fn::<_, O, _>(|innov| Output::new(I + innov))),
             conns: Conns::default(),
             fitness: f32::default(),
         }
@@ -116,7 +116,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         };
 
         for conn in matching.iter().chain(disjoint.iter()) { // use unordered after debugging
-            dbg!(&conn.trailing);
+            // dbg!(&conn.trailing);
 
             match conn.leading {
                 Leading::Input(ref input) => {
@@ -148,9 +148,19 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             inputs: inputs.try_into().unwrap(),
             hiddens,
             outputs: outputs.try_into().unwrap(),
-            conns: Conns::from_matching_disjoint(matching, disjoint),
+            conns: Conns::from(matching, disjoint),
             fitness: f32::default(),
         }
+    }
+}
+
+impl<const I: usize, const O: usize> Clone for Genome<I, O> {
+    fn clone(&self) -> Self {
+        let inputs = Box::new(self.inputs.clone().map(Rc::unwrap_or_clone).map(Rc::new));
+        let hiddens = self.hiddens.iter().cloned().map(Rc::unwrap_or_clone).map(Rc::new).collect();
+        let outputs = Box::new(self.outputs.clone().map(Rc::unwrap_or_clone).map(Rc::new));
+        let conns = self.conns.clone_from(&inputs, &hiddens, &outputs);
+        todo!()
     }
 }
 
