@@ -3,8 +3,11 @@ name = "neat"
 version = "0.1.0"
 edition = "2021"
 
+[dependencies.dot]
+version = "0.1.4"
+
 [dependencies.hashbrown]
-version = "0.15.0"
+version = "0.15.1"
 features = ["default-hasher"]
 default-features = false
 
@@ -12,4 +15,3 @@ default-features = false
 version = "0.8.5"
 features = ["small_rng"]
 default-features = false
-

@@ -1,6 +1,6 @@
 extern crate alloc;
 use crate::{conn::Conn, pop::Pop};
-use core::{cell::Cell, cmp, hash, ptr};
+use core::{cell::Cell, cmp, fmt, hash, ptr};
 use alloc::{rc::Rc, vec::Vec};
 use hashbrown::HashMap;
 
@@ -59,7 +59,7 @@ pub trait Node {
     fn aggregator(&self) -> fn(&[f32]) -> f32;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Input {
     innov: usize,
     bias: f32,
@@ -262,6 +262,15 @@ impl Node for Leading {
     fn aggregator(&self) -> fn(&[f32]) -> f32 { todo!(); }
 }
 
+impl fmt::Pointer for Leading {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Input(ref input) => fmt::Pointer::fmt(input, f),
+            Self::Hidden(ref hidden) => fmt::Pointer::fmt(hidden, f),
+        }
+    }
+}
+
 impl From<&Leading> for Leading {
     fn from(value: &Leading) -> Self {
         value.clone()
@@ -277,6 +286,18 @@ impl From<&Rc<Input>> for Leading {
 impl From<&Rc<Hidden>> for Leading {
     fn from(value: &Rc<Hidden>) -> Self {
         Self::Hidden(value.clone())
+    }
+}
+
+impl PartialEq<Input> for Leading {
+    fn eq(&self, rhs: &Input) -> bool {
+        self.input().and_then(|lhs| Some(*lhs == *rhs)).is_some()
+    }
+}
+
+impl PartialEq<Hidden> for Leading {
+    fn eq(&self, rhs: &Hidden) -> bool {
+        self.hidden().and_then(|lhs| Some(*lhs == *rhs)).is_some()
     }
 }
 
@@ -369,6 +390,15 @@ impl Node for Trailing {
     }
 }
 
+impl fmt::Pointer for Trailing {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Hidden(ref hidden) => fmt::Pointer::fmt(hidden, f),
+            Self::Output(ref output) => fmt::Pointer::fmt(output, f),
+        }
+    }
+}
+
 impl From<&Trailing> for Trailing {
     fn from(value: &Trailing) -> Self {
         value.clone()
@@ -384,6 +414,18 @@ impl From<&Rc<Hidden>> for Trailing {
 impl From<&Rc<Output>> for Trailing {
     fn from(value: &Rc<Output>) -> Self {
         Self::Output(value.clone())
+    }
+}
+
+impl PartialEq<Hidden> for Trailing {
+    fn eq(&self, rhs: &Hidden) -> bool {
+        self.hidden().and_then(|lhs| Some(*lhs == *rhs)).is_some()
+    }
+}
+
+impl PartialEq<Output> for Trailing {
+    fn eq(&self, rhs: &Output) -> bool {
+        self.output().and_then(|lhs| Some(*lhs == *rhs)).is_some()
     }
 }
 

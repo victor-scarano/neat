@@ -1,8 +1,7 @@
-
 extern crate alloc;
 use crate::{node::*, pop::Pop};
 use core::{cell::Cell, cmp::Ordering, fmt, hash};
-use alloc::{collections::BTreeSet, rc::Rc};
+use alloc::{collections::BTreeSet, rc::*};
 use hashbrown::HashSet;
 
 #[derive(Clone)]
@@ -41,14 +40,8 @@ impl fmt::Debug for Conn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f
             .debug_struct("Conn")
-            .field_with("leading", |f| match &self.leading {
-                Leading::Input(input) => fmt::Pointer::fmt(input, f),
-                Leading::Hidden(hidden) => fmt::Pointer::fmt(hidden, f)
-            })
-            .field_with("trailing", |f| match &self.trailing {
-                Trailing::Hidden(hidden) => fmt::Pointer::fmt(hidden, f),
-                Trailing::Output(output) => fmt::Pointer::fmt(output, f),
-            })
+            .field_with("leading", |f| fmt::Pointer::fmt(&self.leading, f))
+            .field_with("trailing", |f| fmt::Pointer::fmt(&self.trailing, f))
             .field("weight", &self.weight)
             .field("enabled", &self.enabled.get())
             .field("layer", &self.layer)
@@ -95,25 +88,29 @@ pub struct Conns {
 
 impl Conns {
     // probably optimizable
+    // probably a cleaner way to do this
     pub fn clone_from<const I: usize, const O: usize>(
         &self,
         inputs: &[Rc<Input>; I],
         hiddens: &HashSet<Rc<Hidden>>,
         outputs: &[Rc<Output>; O],
     ) -> Self {
-        let btree = BTreeSet::from_iter(self.btree.iter().cloned().map(|mut conn| {
-            conn.leading = match conn.leading {
-                Leading::Input(ref input) => Leading::Input(inputs[input.idx()]),
-                Leading::Hidden(ref hidden) => Leading::Hidden(*hiddens.get(hidden).unwrap()),
-            };
+        let btree = BTreeSet::from_iter(self.btree.iter()
+            .map(<Rc<Conn> as AsRef<Conn>>::as_ref)
+            .map(Conn::clone)
+            .map(|mut conn| {
+                conn.leading = match conn.leading {
+                    Leading::Input(ref input) => Leading::Input(inputs[input.idx()].clone()),
+                    Leading::Hidden(ref hidden) => Leading::Hidden(hiddens.get(hidden).cloned().unwrap()),
+                };
 
-            conn.trailing = match conn.trailing {
-                Trailing::Hidden(ref hidden) => Trailing::Hidden(*hiddens.get(hidden).unwrap()),
-                Trailing::Output(ref output) => Trailing::Output(outputs[output.idx::<I>()]),
-            };
+                conn.trailing = match conn.trailing {
+                    Trailing::Hidden(ref hidden) => Trailing::Hidden(hiddens.get(hidden).cloned().unwrap()),
+                    Trailing::Output(ref output) => Trailing::Output(outputs[output.idx::<I>()].clone()),
+                };
 
-            conn
-        }));
+                Rc::new(conn)
+            }));
 
         let hash = HashSet::from_iter(btree.iter().cloned());
 
@@ -138,14 +135,16 @@ impl Conns {
         self.hash.get(conn).unwrap()
     }
 
-    pub fn insert(&mut self, conn: Conn) {
+    pub fn insert(&mut self, conn: Conn) -> Weak<Conn> {
         let conn = Rc::new(conn);
 
         let inserted = self.btree.insert(conn.clone());
         assert!(inserted);
 
-        let inserted = self.hash.insert(conn);
+        let inserted = self.hash.insert(conn.clone());
         assert!(inserted);
+
+        Rc::downgrade(&conn)
     }
 
     pub fn iter_ordered(&self) -> impl Iterator<Item = &Conn> {

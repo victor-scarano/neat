@@ -52,16 +52,23 @@ fn figure_four() {
 
     // 1 -> 4
     rng = SmallRng::seed_from_u64(0);
-    parent.mutate_add_conn(&mut rng);
+    let conn = parent.mutate_add_conn(&mut rng).upgrade().unwrap();
+    assert_eq!(conn.leading, *parent.inputs[0]);
+    assert_eq!(conn.trailing, *parent.outputs[0]);
 
     // 2 -> 4 (disabled)
     rng = SmallRng::seed_from_u64(1);
-    parent.mutate_add_conn(&mut rng);
+    let conn = parent.mutate_add_conn(&mut rng).upgrade().unwrap();
     parent.conns.iter_ordered().last().unwrap().enabled.set(false);
+    assert_eq!(conn.enabled.get(), false);
+    assert_eq!(conn.leading, *parent.inputs[1]);
+    assert_eq!(conn.trailing, *parent.outputs[0]);
 
     // 3 -> 4
     rng = SmallRng::seed_from_u64(3);
-    parent.mutate_add_conn(&mut rng);
+    let conn = parent.mutate_add_conn(&mut rng).upgrade().unwrap();
+    assert_eq!(conn.leading, *parent.inputs[2]);
+    assert_eq!(conn.trailing, *parent.outputs[0]);
 
     // split 2 -> 4 : 5
     rng = SmallRng::seed_from_u64(1);
