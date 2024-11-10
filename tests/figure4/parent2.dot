@@ -21,6 +21,10 @@ digraph genome {
 	}
 
 	subgraph 2 {
+		N5 [label = 6]
+	}
+
+	subgraph 3 {
 		N3 [label = 4]
 	}
 
@@ -30,6 +34,7 @@ digraph genome {
 	// N1 -> N3
 	N2 -> N3
 	N1 -> N4
-	N0 -> N4
-	N4 -> N3
+	// N4 -> N3
+	N4 -> N5
+	N5 -> N3
 }

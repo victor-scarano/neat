@@ -188,14 +188,15 @@ impl<const I: usize, const O: usize> fmt::Debug for Genome<I, O> {
 // probably a better way to do this but it works for now lmao
 // TODO: makesure dot formatting is correct
 // TODO: add input/output arrow indicators like in stanleys paper
+// TODO: sometimes nodes go out of order in their subgraph
 impl<const I: usize, const O: usize> fmt::Display for Genome<I, O> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "digraph genome {{")?;
 
-        writeln!(f, "\tnodesep = 0.3")?;
+        writeln!(f, "\t// nodesep = 0.3")?;
         writeln!(f, "\trank = same")?;
         writeln!(f, "\trankdir = BT")?;
-        writeln!(f, "\tranksep = 0.2")?;
+        writeln!(f, "\t// ranksep = 0.2")?;
         writeln!(f, "")?;
 
         writeln!(f, "\tnode [fixedsize = true]")?;

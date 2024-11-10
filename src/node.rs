@@ -186,7 +186,7 @@ impl hash::Hash for Output {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Leading {
     Input(Rc<Input>),
     Hidden(Rc<Hidden>),
