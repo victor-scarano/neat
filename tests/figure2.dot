@@ -1,0 +1,35 @@
+digraph genome {
+	nodesep = 0.3
+	rank = same
+	rankdir = BT
+	ranksep = 0.2
+
+	node [fixedsize = true]
+	node [fontsize = 7]
+	node [shape = circle]
+	node [style = filled]
+	node [width = 0.15]
+
+	subgraph 0 {
+		N0 [label = 1]
+		N1 [label = 2]
+		N2 [label = 3]
+	}
+
+	subgraph 1 {
+		N4 [label = 5]
+	}
+
+	subgraph 2 {
+		N3 [label = 4]
+	}
+
+	edge [arrowsize = 0.3]
+
+	N0 -> N3
+	// N1 -> N3
+	N2 -> N3
+	N1 -> N4
+	N0 -> N4
+	N4 -> N3
+}

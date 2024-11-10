@@ -1,7 +1,7 @@
 extern crate alloc;
 use crate::{conn::*, node::*};
-use core::{array, cmp, fmt, mem, ptr};
-use alloc::{borrow::Cow, boxed::Box, rc::*, vec::Vec};
+use core::{array, cmp, fmt, mem};
+use alloc::{boxed::Box, collections::BTreeMap, rc::*, vec::Vec};
 use hashbrown::{HashMap, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
@@ -185,27 +185,67 @@ impl<const I: usize, const O: usize> fmt::Debug for Genome<I, O> {
     }
 }
 
-impl<'a, const I: usize, const O: usize> dot::GraphWalk<'a, usize, (usize, usize)> for Genome<I, O> {
-    fn nodes(&'a self) -> dot::Nodes<'a, usize> {
-        Cow::Owned(self.inputs.iter().map(|input| ptr::addr_of!(*input.as_ref()) as usize)
-            .chain(self.hiddens.iter().map(|hidden| ptr::addr_of!(*hidden.as_ref()) as usize))
-            .chain(self.outputs.iter().map(|output| ptr::addr_of!(*output.as_ref()) as usize))
-            .collect())
-    }
+// probably a better way to do this but it works for now lmao
+// TODO: makesure dot formatting is correct
+// TODO: add input/output arrow indicators like in stanleys paper
+impl<const I: usize, const O: usize> fmt::Display for Genome<I, O> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "digraph genome {{")?;
 
-    fn edges(&'a self) -> dot::Edges<'a, (usize, usize)> {
-        Cow::Owned(self.conns.iter_ordered().map(|conn| {
-            let leading = match conn.leading {
-                Leading::Input(ref input) => ptr::addr_of!(*input.as_ref()) as usize,
-                Leading::Hidden(ref hidden) => ptr::addr_of!(*hidden.as_ref()) as usize,
-            };
+        writeln!(f, "\tnodesep = 0.3")?;
+        writeln!(f, "\trank = same")?;
+        writeln!(f, "\trankdir = BT")?;
+        writeln!(f, "\tranksep = 0.2")?;
+        writeln!(f, "")?;
 
-            let trailing = match conn.trailing {
-                Trailing::Hidden(ref hidden) => ptr::addr_of!(*hidden.as_ref()) as usize,
-                Trailing::Output(ref output) => ptr::addr_of!(*output.as_ref()) as usize,
-            };
+        writeln!(f, "\tnode [fixedsize = true]")?;
+        writeln!(f, "\tnode [fontsize = 7]")?;
+        writeln!(f, "\tnode [shape = circle]")?;
+        writeln!(f, "\tnode [style = filled]")?;
+        writeln!(f, "\tnode [width = 0.15]")?;
+        writeln!(f, "")?;
 
-            (leading, trailing)
-        }).collect())
+        let mut map = BTreeMap::<_, Vec<_>>::new();
+
+        for input in self.inputs.iter() {
+            map.entry(input.layer()).or_default().push(input.innov());
+        }
+
+        for hidden in self.hiddens.iter() {
+            map.entry(hidden.layer()).or_default().push(hidden.innov());
+        }
+
+        for output in self.outputs.iter() {
+            map.entry(output.layer()).or_default().push(output.innov());
+        }
+
+        while let Some((layer, innovs)) = map.pop_first() {
+            writeln!(f, "\tsubgraph {} {{", layer)?;
+            
+            for innov in innovs {
+                writeln!(f, "\t\tN{} [label = {}]", innov, innov + 1)?;
+            }
+
+            writeln!(f, "\t}}")?;
+            writeln!(f, "")?;
+        }
+
+        writeln!(f, "\tedge [arrowsize = 0.3]")?;
+        writeln!(f, "")?;
+
+        for conn in self.conns.iter_ordered() {
+            write!(f, "\t")?;
+
+            if !conn.enabled.get() {
+                write!(f, "// ")?;
+            }
+
+            writeln!(f, "N{} -> N{}", conn.leading.innov(), conn.trailing.innov())?;
+        }
+
+        writeln!(f, "}}")?;
+
+        Ok(())
     }
 }
+

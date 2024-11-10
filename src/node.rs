@@ -34,28 +34,12 @@ impl Accum {
 }
 
 pub trait Node {
-    /// Returns the [`Node`]'s `layer` in the [`Genome`].
     fn layer(&self) -> usize;
-
-    /// Returns the [`Node`]'s `bias`.
     fn bias(&self) -> f32;
-
-    /// Returns the [`Node`]'s `innov`.
     fn innov(&self) -> usize;
-
-    /// Updates the [`Node`]'s `layer` in the [`Genome`].
-    ///
-    /// # Panics
-    /// Panics if called on an [`Input`] node.
     fn update_layer(&self, layer: usize);
-
-    /// Returns the [`Node`]'s activation based on the given input.
     fn activate(&self, x: f32) -> f32;
-
-    /// Returns the [`Node`]'s `response`.
     fn response(&self) -> f32;
-
-    /// Returns the [`Node`]'s aggregation function.
     fn aggregator(&self) -> fn(&[f32]) -> f32;
 }
 
@@ -434,6 +418,96 @@ impl PartialEq<Leading> for Trailing {
         match (self, other) {
             (Self::Hidden(lhs), Leading::Hidden(rhs)) => lhs == rhs,
             _ => false
+        }
+    }
+}
+
+// kinda ugly and not very ideal, but for now its needed for graphviz (without using dynamic dispatch)
+// maybe there is a better way we can manage nodes in general to avoid all of these types.
+// if preferably call this type node, but then the node trait would be conflicting
+#[derive(Clone)]
+pub enum AnyNode {
+    Input(Rc<Input>),
+    Hidden(Rc<Hidden>),
+    Output(Rc<Output>),
+}
+
+impl From<Leading> for AnyNode {
+    fn from(value: Leading) -> Self {
+        match value {
+            Leading::Input(input) => Self::Input(input),
+            Leading::Hidden(hidden) => Self::Hidden(hidden),
+        }
+    }
+}
+
+impl From<Trailing> for AnyNode {
+    fn from(value: Trailing) -> Self {
+        match value {
+            Trailing::Hidden(hidden) => Self::Hidden(hidden),
+            Trailing::Output(output) => Self::Output(output),
+        }
+    }
+}
+
+impl From<&Rc<Input>> for AnyNode {
+    fn from(value: &Rc<Input>) -> Self {
+        Self::Input(value.clone())
+    }
+}
+
+impl From<&Rc<Hidden>> for AnyNode {
+    fn from(value: &Rc<Hidden>) -> Self {
+        Self::Hidden(value.clone())
+    }
+}
+
+impl From<&Rc<Output>> for AnyNode {
+    fn from(value: &Rc<Output>) -> Self {
+        Self::Output(value.clone())
+    }
+}
+
+impl Node for AnyNode {
+    fn bias(&self) -> f32 {
+        todo!()
+    }
+
+    fn layer(&self) -> usize {
+        todo!()
+    }
+
+    fn innov(&self) -> usize {
+        match self {
+            Self::Input(ref input) => input.innov,
+            Self::Hidden(ref hidden) => hidden.innov,
+            Self::Output(ref output) => output.innov,
+        }
+    }
+    
+    fn activate(&self, x: f32) -> f32 {
+        todo!()
+    }
+
+    fn response(&self) -> f32 {
+        todo!()
+    }
+
+    fn aggregator(&self) -> fn(&[f32]) -> f32 {
+        todo!()
+    }
+
+    fn update_layer(&self, layer: usize) {
+        todo!()
+    }
+}
+
+impl fmt::Pointer for AnyNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Input(ref input) => fmt::Pointer::fmt(input, f),
+            Self::Hidden(ref hidden) => fmt::Pointer::fmt(hidden, f),
+            Self::Output(ref output) => fmt::Pointer::fmt(output, f),
         }
     }
 }
