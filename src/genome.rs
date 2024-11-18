@@ -5,39 +5,39 @@ use alloc::{boxed::Box, collections::BTreeMap, rc::*, vec::Vec};
 use hashbrown::{HashMap, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
-pub struct Genome<const I: usize, const O: usize> {
-    pub inputs: Box<[Rc<Input>; I]>,
-    pub hiddens: HashSet<Rc<Hidden>>,
-    pub outputs: Box<[Rc<Output>; O]>,
-    pub conns: Conns,
+pub struct Genome<'g, const I: usize, const O: usize> {
+    pub inputs: Inputs<I>,
+    pub hiddens: Hiddens,
+    pub outputs: Outputs<I, O>,
+    pub conns: Conns<'g>,
     pub fitness: f32,
 }
 
-impl<const I: usize, const O: usize> Genome<I, O> {
+impl<const I: usize, const O: usize> Genome<'_, I, O> {
     pub fn new() -> Self {
         assert_ne!(I, 0);
         assert_ne!(O, 0);
 
         Self {
-            inputs: Box::new(array::from_fn::<_, I, _>(|innov| Input::new(innov))),
-            hiddens: HashSet::default(),
-            outputs: Box::new(array::from_fn::<_, O, _>(|innov| Output::new(I + innov))),
+            inputs: Inputs::new(),
+            hiddens: Hiddens::new(),
+            outputs: Outputs::new(),
             conns: Conns::default(),
             fitness: f32::default(),
         }
     }
 
     pub fn mutate_add_conn(&mut self, rng: &mut impl Rng) -> Weak<Conn> {
-        let leading = self.inputs.iter().map(Leading::from)
-            .chain(self.hiddens.iter().map(Leading::from))
+        let tail = self.inputs.iter().map(Tail::from)
+            .chain(self.hiddens.iter().map(Tail::from))
             .choose_stable(rng).unwrap();
 
-        let trailing = self.hiddens.iter().map(Trailing::from)
-            .chain(self.outputs.iter().map(Trailing::from))
-            .filter(|trailing| *trailing != leading)
+        let head = self.hiddens.iter().map(Head::from)
+            .chain(self.outputs.iter().map(Head::from))
+            .filter(|head| *head != tail)
             .choose_stable(rng).unwrap();
 
-        let conn = Conn::new(leading, trailing);
+        let conn = Conn::new(tail, head);
         self.conns.insert(conn)
     }
 
@@ -53,8 +53,8 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         // ideally we want an insert_and_get -> Option<&Hidden> so we can check
         let middle = self.hiddens.get_or_insert(Hidden::new(conn));
 
-        let first = Conn::new(&conn.leading, middle);
-        let last = Conn::new(middle, &conn.trailing);
+        let first = Conn::new(&conn.tail, middle);
+        let last = Conn::new(middle, &conn.head);
 
         let first = self.conns.insert(first);
         let middle = Rc::downgrade(middle);
@@ -71,12 +71,12 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         let mut map = HashMap::new();
 
         for conn in self.conns.iter_ordered().take_while(|conn| conn.enabled.get()) {
-            let eval = match conn.leading {
-                Leading::Input(ref input) => input.eval(conn.weight, inputs),
-                Leading::Hidden(ref hidden) => hidden.eval(conn.weight, &mut map),
+            let eval = match conn.tail {
+                Tail::Input(ref input) => input.eval(conn.weight, inputs),
+                Tail::Hidden(ref hidden) => hidden.eval(conn.weight, &mut map),
             };
 
-            map.entry(conn.trailing.clone()).or_insert(Accum::new()).push(eval);
+            map.entry(conn.head.clone()).or_insert(Accum::new()).push(eval);
         }
 
         array::from_fn::<_, O, _>(|idx| self.outputs[idx].eval(&mut map))
@@ -119,27 +119,27 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         };
 
         for conn in matching.iter().chain(disjoint.iter()) { // use unordered after debugging
-            // dbg!(&conn.trailing);
+            // dbg!(&conn.head);
 
-            match conn.leading {
-                Leading::Input(ref input) => {
+            match conn.tail {
+                Tail::Input(ref input) => {
                     let new = Rc::new(Input::clone(input));
                     inputs.push(new);
                 }
-                Leading::Hidden(ref hidden) => {
+                Tail::Hidden(ref hidden) => {
                     let new = Rc::new(Hidden::clone(hidden));
                     let inserted = hiddens.insert(new);
                     assert!(inserted);
                 }
             }
 
-            match conn.trailing {
-                Trailing::Hidden(ref hidden) => {
+            match conn.head {
+                Head::Hidden(ref hidden) => {
                     let new = Rc::new(Hidden::clone(hidden));
                     let inserted = hiddens.insert(new);
                     assert!(inserted);
                 }
-                Trailing::Output(ref output) => {
+                Head::Output(ref output) => {
                     let new = Rc::new(Output::clone(output));
                     outputs.push(new);
                 }
@@ -241,7 +241,7 @@ impl<const I: usize, const O: usize> fmt::Display for Genome<I, O> {
                 write!(f, "// ")?;
             }
 
-            writeln!(f, "N{} -> N{}", conn.leading.innov(), conn.trailing.innov())?;
+            writeln!(f, "N{} -> N{}", conn.tail.innov(), conn.head.innov())?;
         }
 
         writeln!(f, "}}")?;

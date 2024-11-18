@@ -5,43 +5,43 @@ use alloc::{collections::BTreeSet, rc::*};
 use hashbrown::HashSet;
 
 #[derive(Clone)]
-pub struct Conn {
-    pub leading: Leading,
-    pub trailing: Trailing,
+pub struct Conn<'g> {
+    pub tail: Tail<'g>,
+    pub head: Head<'g>,
     pub weight: f32,
     pub enabled: Cell<bool>,
     pub layer: usize,
     pub innov: usize,
 }
 
-impl Conn {
-    pub fn new(leading: impl Into<Leading>, trailing: impl Into<Trailing>) -> Self {
-        let leading = leading.into();
-        let trailing = trailing.into();
+impl Conn<'_> {
+    pub fn new(tail: impl Into<Tail>, head: impl Into<Head>) -> Self {
+        let tail = tail.into();
+        let head = head.into();
 
-        assert_ne!(leading, trailing);
+        assert_ne!(tail, head);
 
-        trailing.update_layer(leading.layer() + 1);
+        head.update_layer(tail.layer() + 1);
 
         Self {
-            innov: Pop::next_conn_innov(&leading, &trailing),
-            layer: leading.layer(),
+            innov: Pop::next_conn_innov(&tail, &head),
+            layer: tail.layer(),
             enabled: true.into(),
             weight: 1.0,
-            leading,
-            trailing,
+            tail,
+            head,
         }
     }
 }
 
-impl Eq for Conn {}
+impl Eq for Conn<'_> {}
 
-impl fmt::Debug for Conn {
+impl fmt::Debug for Conn<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f
             .debug_struct("Conn")
-            .field_with("leading", |f| fmt::Pointer::fmt(&self.leading, f))
-            .field_with("trailing", |f| fmt::Pointer::fmt(&self.trailing, f))
+            .field_with("tail", |f| fmt::Pointer::fmt(&self.tail, f))
+            .field_with("head", |f| fmt::Pointer::fmt(&self.head, f))
             .field("weight", &self.weight)
             .field("enabled", &self.enabled.get())
             .field("layer", &self.layer)
@@ -50,13 +50,13 @@ impl fmt::Debug for Conn {
     }
 }
 
-impl hash::Hash for Conn {
+impl hash::Hash for Conn<'_> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.innov.hash(state);
     }
 }
 
-impl Ord for Conn {
+impl Ord for Conn<'_> {
     fn cmp(&self, other: &Self) -> Ordering {
         // self.enabled.get()
         //    .cmp(&other.enabled.get())
@@ -66,13 +66,13 @@ impl Ord for Conn {
 }
 
 // used to be equal if innovations were equal, but needs to reflect ord impl
-impl PartialEq for Conn {
+impl PartialEq for Conn<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other).is_eq() && self.innov == other.innov
     }
 }
 
-impl PartialOrd for Conn {
+impl PartialOrd for Conn<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -81,12 +81,12 @@ impl PartialOrd for Conn {
 // TODO: Write custom Rc implementation to optimize for only two possible references so that the RcInner allocation
 // isn't as large as it normally is
 #[derive(Default)]
-pub struct Conns {
-    btree: BTreeSet<Rc<Conn>>,
-    hash: HashSet<Rc<Conn>>,
+pub struct Conns<'g> {
+    btree: BTreeSet<Rc<Conn<'g>>>,
+    hash: HashSet<Rc<Conn<'g>>>,
 }
 
-impl Conns {
+impl Conns<'_> {
     // probably optimizable
     // probably a cleaner way to do this
     pub fn clone_from<const I: usize, const O: usize>(
@@ -99,14 +99,14 @@ impl Conns {
             .map(<Rc<Conn> as AsRef<Conn>>::as_ref)
             .map(Conn::clone)
             .map(|mut conn| {
-                conn.leading = match conn.leading {
-                    Leading::Input(ref input) => Leading::Input(inputs[input.idx()].clone()),
-                    Leading::Hidden(ref hidden) => Leading::Hidden(hiddens.get(hidden).cloned().unwrap()),
+                conn.tail = match conn.tail {
+                    Tail::Input(ref input) => Tail::Input(inputs[input.idx()].clone()),
+                    Tail::Hidden(ref hidden) => Tail::Hidden(hiddens.get(hidden).cloned().unwrap()),
                 };
 
-                conn.trailing = match conn.trailing {
-                    Trailing::Hidden(ref hidden) => Trailing::Hidden(hiddens.get(hidden).cloned().unwrap()),
-                    Trailing::Output(ref output) => Trailing::Output(outputs[output.idx::<I>()].clone()),
+                conn.head = match conn.head {
+                    Head::Hidden(ref hidden) => Head::Hidden(hiddens.get(hidden).cloned().unwrap()),
+                    Head::Output(ref output) => Head::Output(outputs[output.idx::<I>()].clone()),
                 };
 
                 Rc::new(conn)
