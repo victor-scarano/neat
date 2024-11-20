@@ -1,39 +1,47 @@
-use crate::{conn::Conn, pop::Pop, node::*, node::accum::Accum};
-use core::{cell::Cell, cmp, hash, iter};
-use hashbrown::{HashMap, hash_set::{self, HashSet}};
+use crate::{edge::Edge, pop::Pop, node::*, node::Accum};
+use core::{cell::Cell, cmp, hash, marker::PhantomPinned, mem::ManuallyDrop, pin::Pin};
+use hashbrown::{HashMap, HashSet};
+
+pub type Hidden = ManuallyDrop<Pin<Box<Inner>>>;
 
 #[derive(Clone, Debug)]
-pub struct Hidden {
+struct Inner {
     layer: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
     aggregator: fn(&[f32]) -> f32,
     response: f32,
     bias: f32,
     innov: usize,
+    _pinned: PhantomPinned
 }
 
-impl Hidden {
-    pub fn new(conn: &Conn) -> Self {
-        let curr_level = conn.tail.layer();
-        conn.head.update_layer(curr_level + 1);
+impl Inner {
+    fn from_edge(edge: &Edge) -> *mut Self {
+        let curr_level = edge.tail.layer();
+        edge.head.update_layer(curr_level + 1);
 
-        Self {
+        Box::into_raw(Box::new(Self {
             layer: Cell::new(curr_level),
             activation: Cell::new(|x| x),
             aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
             response: 1.0,
             bias: 0.0,
             innov: Pop::next_node_innov(),
-        }
+            _pinned: PhantomPinned
+        }))
     }
 
-    pub fn eval(self: &Self, weight: f32, map: &mut HashMap<Head, Accum>) -> f32 {
+    fn from_inner(inner: *mut Self) -> Hidden {
+        ManuallyDrop::new(Box::into_pin(unsafe { Box::from_raw(inner) }))
+    }
+
+    pub fn eval(self, weight: f32, map: &mut HashMap<Head, Accum>) -> f32 {
         let input = map.get_mut(&Head::from(self)).unwrap().eval(self.aggregator);
         weight * self.activate(self.bias() + (self.response() * input))
     }
 }
 
-impl Node for Hidden {
+impl Node for Inner {
     fn layer(&self) -> usize { self.layer.get() }
     fn bias(&self) -> f32 { self.bias }
     fn innov(&self) -> usize { self.innov }
@@ -43,30 +51,50 @@ impl Node for Hidden {
     fn aggregator(&self) -> fn(&[f32]) -> f32 { self.aggregator }
 }
 
-impl Eq for Hidden {}
+impl Eq for Inner {}
 
-impl hash::Hash for Hidden {
+impl hash::Hash for Inner {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.response.to_le_bytes().hash(state);
-        self.bias.to_le_bytes().hash(state);
+        self.response.to_ne_bytes().hash(state);
+        self.bias.to_ne_bytes().hash(state);
         self.innov.hash(state);
     }
 }
 
-impl PartialEq for Hidden {
+impl PartialEq for Inner {
     fn eq(&self, other: &Self) -> bool {
         self.response == other.response && self.bias == other.bias && self.innov == other.innov
     }
 }
 
-pub struct Hiddens(HashSet<Pin<Box<Hidden>>>);
+pub struct Hiddens(HashSet<*mut Inner>);
 
 impl Hiddens {
     pub fn new() -> Self {
         Self(HashSet::new())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Pin<&Hidden>> {
-        self.0.iter().map(<Pin<Box<Hidden>>>::as_ref)
+    // must always insert, but cant check to make sure it inserted
+    // we want insert_then_get functionality
+    pub fn insert_from_edge_and_get(&mut self, edge: &Edge) -> Hidden {
+        Inner::from_inner(*self.0.get_or_insert(Inner::from_edge(edge)))
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Hidden> + '_ {
+        self.0.iter().copied().map(Inner::from_inner)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 }
+
+// i believe this is not a full replacement for the drop glue, and the drop glue will run after this call
+impl Drop for Hiddens {
+    fn drop(&mut self) {
+        for raw in self.0.iter() {
+            drop(unsafe { Box::from_raw(*raw) });
+        }
+    }
+}
+

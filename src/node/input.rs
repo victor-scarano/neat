@@ -1,17 +1,18 @@
-use crate::pop::Pop;
-use super::Node;
-use core::{array, pin::Pin};
+use crate::{node::Node, pop::Pop};
+use core::{array, fmt, mem::ManuallyDrop, pin::Pin};
+
+pub type Input = ManuallyDrop<Pin<Box<Inner>>>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Input {
+struct Inner {
     innov: usize,
     bias: f32,
 }
 
-impl Input {
+impl Inner {
     pub fn new(innov: usize) -> Self {
         Pop::next_node_innov();
-        Self { innov, bias: f32::default() }
+        Self { innov, bias: 0.0 }
     }
 
     // we can use self.innov as the idx for any input node
@@ -24,7 +25,7 @@ impl Input {
     }
 }
 
-impl Node for Input {
+impl Node for Inner {
     fn layer(&self) -> usize { 0 }
     fn bias(&self) -> f32 { self.bias }
     fn innov(&self) -> usize { self.innov }
@@ -35,20 +36,25 @@ impl Node for Input {
 }
 
 // a heap allocated array of inputs that guarantees that inputs do not move
-pub struct Inputs<const I: usize>(Pin<Box<[Input; I]>>);
+pub struct Inputs<const I: usize>(Pin<Box<[Inner; I]>>);
 
 impl<const I: usize> Inputs<I> {
     pub fn new() -> Self {
-        Self(Box::pin(array::from_fn::<_, I, _>(|innov| Input::new(innov))))
+        Self(Box::pin(array::from_fn::<_, I, _>(|innov| Inner::new(innov))))
     }
 
-    pub fn get(&self, index: usize) -> Option<Pin<&Input>> {
-        Some(unsafe { Pin::new_unchecked(self.0.get(index)?) })
+    pub fn get(&self, index: usize) -> Option<Input> {
+        Some(ManuallyDrop::new(Box::into_pin(unsafe { Box::from_raw(self.0.get(index)? as *const _ as *mut _) })))
     }
 
     pub fn iter(&self) -> Iter<I> {
-        let inputs = unsafe { Pin::new_unchecked(self.0.as_slice()) };
         Iter { inputs: self, index: 0 }
+    }
+}
+
+impl<const I: usize> fmt::Debug for Inputs<I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map().finish()
     }
 }
 
@@ -58,7 +64,7 @@ pub struct Iter<'a, const I: usize> {
 }
 
 impl<'a, const I: usize> Iterator for Iter<'a, I> {
-    type Item = Pin<&'a Input>;
+    type Item = Input;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.inputs.get(self.index);
@@ -66,3 +72,4 @@ impl<'a, const I: usize> Iterator for Iter<'a, I> {
         next
     }
 }
+

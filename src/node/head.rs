@@ -1,21 +1,21 @@
 use super::*;
-use core::{pin::Pin, fmt};
+use core::fmt;
 
 #[derive(Eq, Clone, Debug, Hash, PartialEq)]
-pub enum Head<'g> {
-    Hidden(Pin<&'g Hidden>),
-    Output(Pin<&'g Output>),
+pub enum Head {
+    Hidden(Hidden),
+    Output(Output),
 }
 
-impl Head<'_> {
-    pub fn hidden(&self) -> Option<Pin<&Hidden>> {
+impl Head {
+    pub fn hidden(&self) -> Option<&Hidden> {
         match self {
             Self::Hidden(hidden) => Some(hidden),
             Self::Output(_) => None,
         }
     }
 
-    pub fn output(&self) -> Option<Pin<&Output>> {
+    pub fn output(&self) -> Option<&Output> {
         match self {
             Self::Hidden(_) => None,
             Self::Output(output) => Some(output),
@@ -30,7 +30,7 @@ impl Head<'_> {
     }
 }
 
-impl Node for Head<'_> {
+impl Node for Head {
     fn layer(&self) -> usize {
         match self {
             Self::Hidden(hidden) => hidden.layer(),
@@ -81,7 +81,7 @@ impl Node for Head<'_> {
     }
 }
 
-impl fmt::Pointer for Head<'_> {
+impl fmt::Pointer for Head {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Hidden(ref hidden) => fmt::Pointer::fmt(hidden, f),
@@ -90,31 +90,25 @@ impl fmt::Pointer for Head<'_> {
     }
 }
 
-impl<'g> From<Pin<&'g Hidden>> for Head<'g> {
-    fn from(value: Pin<&'g Hidden>) -> Self {
+impl From<Hidden> for Head {
+    fn from(value: Hidden) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl<'g> From<Pin<&'g Output>> for Head<'g> {
-    fn from(value: Pin<&'g Output>) -> Self {
-        Self::Output(value)
-    }
-}
-
-impl PartialEq<Hidden> for Head<'_> {
+impl PartialEq<Hidden> for Head {
     fn eq(&self, rhs: &Hidden) -> bool {
         self.hidden().and_then(|lhs| Some(*lhs == *rhs)).is_some()
     }
 }
 
-impl PartialEq<Output> for Head<'_> {
+impl PartialEq<Output> for Head {
     fn eq(&self, rhs: &Output) -> bool {
         self.output().and_then(|lhs| Some(*lhs == *rhs)).is_some()
     }
 }
 
-impl PartialEq<Tail<'_>> for Head<'_> {
+impl PartialEq<Tail> for Head {
     fn eq(&self, other: &Tail) -> bool {
         match (self, other) {
             (Self::Hidden(lhs), Tail::Hidden(rhs)) => lhs == rhs,

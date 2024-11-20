@@ -1,4 +1,4 @@
-use crate::node::{Leading, Trailing};
+use crate::node::{Tail, Head};
 use core::cell::{Cell, RefCell};
 use hashbrown::HashMap;
 
@@ -10,11 +10,11 @@ thread_local! {
 pub struct Pop;
 
 impl Pop {
-    pub fn next_conn_innov(leading: &Leading, trailing: &Trailing) -> usize {
-        let key = (leading.innov(), trailing.innov());
-        CONNS.with_borrow_mut(|conns| {
-            let next = conns.len();
-            *conns.entry(key).or_insert(next)
+    pub fn next_edge_innov(tail: &Tail, head: &Head) -> usize {
+        let key = (tail.innov(), head.innov());
+        CONNS.with_borrow_mut(|edges| {
+            let next = edges.len();
+            *edges.entry(key).or_insert(next)
         })
     }
 
