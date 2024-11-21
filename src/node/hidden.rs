@@ -1,5 +1,5 @@
 use crate::{edge::Edge, pop::Pop, node::*, node::Accum};
-use core::{cell::Cell, cmp, hash, marker::PhantomPinned, mem::ManuallyDrop, pin::Pin};
+use core::{cell::Cell, cmp, fmt, hash, marker::PhantomPinned, mem::ManuallyDrop, pin::Pin};
 use hashbrown::{HashMap, HashSet};
 
 pub type Hidden = ManuallyDrop<Pin<Box<Inner>>>;
@@ -31,12 +31,16 @@ impl Inner {
         }))
     }
 
-    fn from_inner(inner: *mut Self) -> Hidden {
+    fn from_inner(&self) -> Hidden {
+        ManuallyDrop::new(Box::into_pin(unsafe { Box::from_raw(self as *const _ as *mut _) }))
+    }
+
+    fn from_raw_inner(inner: *mut Self) -> Hidden {
         ManuallyDrop::new(Box::into_pin(unsafe { Box::from_raw(inner) }))
     }
 
-    pub fn eval(self, weight: f32, map: &mut HashMap<Head, Accum>) -> f32 {
-        let input = map.get_mut(&Head::from(self)).unwrap().eval(self.aggregator);
+    pub fn eval(&self, weight: f32, map: &mut HashMap<Head, Accum>) -> f32 {
+        let input = map.get_mut(&Head::from(self.from_inner())).unwrap().eval(self.aggregator);
         weight * self.activate(self.bias() + (self.response() * input))
     }
 }
@@ -77,11 +81,11 @@ impl Hiddens {
     // must always insert, but cant check to make sure it inserted
     // we want insert_then_get functionality
     pub fn insert_from_edge_and_get(&mut self, edge: &Edge) -> Hidden {
-        Inner::from_inner(*self.0.get_or_insert(Inner::from_edge(edge)))
+        Inner::from_raw_inner(*self.0.get_or_insert(Inner::from_edge(edge)))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = Hidden> + '_ {
-        self.0.iter().copied().map(Inner::from_inner)
+        self.0.iter().copied().map(Inner::from_raw_inner)
     }
 
     pub fn len(&self) -> usize {
@@ -89,12 +93,19 @@ impl Hiddens {
     }
 }
 
-// i believe this is not a full replacement for the drop glue, and the drop glue will run after this call
 impl Drop for Hiddens {
     fn drop(&mut self) {
         for raw in self.0.iter() {
             drop(unsafe { Box::from_raw(*raw) });
         }
+    }
+}
+
+impl fmt::Debug for Hiddens {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.iter().fold(&mut f.debug_map(), |f, hidden| {
+            f.key_with(|f| fmt::Pointer::fmt(hidden, f)).value(hidden)
+        }).finish()
     }
 }
 

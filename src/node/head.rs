@@ -84,8 +84,9 @@ impl Node for Head {
 impl fmt::Pointer for Head {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Hidden(ref hidden) => fmt::Pointer::fmt(hidden, f),
-            Self::Output(ref output) => fmt::Pointer::fmt(output, f),
+            // does slapping a reference before the node give the address of the actual node? it compiles for now
+            Self::Hidden(ref hidden) => fmt::Pointer::fmt(&hidden, f),
+            Self::Output(ref output) => fmt::Pointer::fmt(&output, f),
         }
     }
 }
@@ -93,6 +94,12 @@ impl fmt::Pointer for Head {
 impl From<Hidden> for Head {
     fn from(value: Hidden) -> Self {
         Self::Hidden(value)
+    }
+}
+
+impl From<Output> for Head {
+    fn from(value: Output) -> Self {
+        Self::Output(value)
     }
 }
 

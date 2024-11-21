@@ -64,8 +64,8 @@ impl Node for Tail {
 impl fmt::Pointer for Tail {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Input(ref input) => fmt::Pointer::fmt(input, f),
-            Self::Hidden(ref hidden) => fmt::Pointer::fmt(hidden, f),
+            Self::Input(ref input) => fmt::Pointer::fmt(&input, f),
+            Self::Hidden(ref hidden) => fmt::Pointer::fmt(&hidden, f),
         }
     }
 }

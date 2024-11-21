@@ -35,7 +35,6 @@ impl Node for Inner {
     fn aggregator(&self) -> fn(&[f32]) -> f32 { panic!(); }
 }
 
-// a heap allocated array of inputs that guarantees that inputs do not move
 pub struct Inputs<const I: usize>(Pin<Box<[Inner; I]>>);
 
 impl<const I: usize> Inputs<I> {
@@ -54,7 +53,9 @@ impl<const I: usize> Inputs<I> {
 
 impl<const I: usize> fmt::Debug for Inputs<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_map().finish()
+        self.0.iter().fold(&mut f.debug_map(), |f, ref input| {
+            f.key_with(|f| fmt::Pointer::fmt(input, f)).value(input)
+        }).finish()
     }
 }
 

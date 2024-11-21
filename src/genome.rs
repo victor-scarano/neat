@@ -5,6 +5,7 @@ use alloc::{collections::BTreeMap, rc::*, vec::Vec};
 use hashbrown::{HashMap, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
+#[derive(Debug)]
 pub struct Genome<const I: usize, const O: usize> {
     pub inputs: Inputs<I>,
     pub hiddens: Hiddens,
@@ -37,7 +38,8 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             .filter(|head| *head != tail)
             .choose_stable(rng).unwrap();
 
-        self.edges.insert(tail, head);
+        let edge = Edge::new(tail, head);
+        self.edges.insert(edge);
     }
 
     pub fn mutate_split_edge(&mut self, rng: &mut impl Rng) {
@@ -149,24 +151,6 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         }
     }
     */
-}
-
-impl<const I: usize, const O: usize> fmt::Debug for Genome<I, O> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f
-            .debug_struct("Genome")
-            .field_with("inputs", |f| self.inputs.iter().fold(&mut f.debug_map(), |f, input| {
-                f.key_with(|f| fmt::Pointer::fmt(input, f)).value(input)
-            }).finish())
-            .field_with("hiddens", |f| self.hiddens.iter().fold(&mut f.debug_map(), |f, hidden| {
-                f.key_with(|f| fmt::Pointer::fmt(hidden, f)).value(hidden)
-            }).finish())
-            .field_with("outputs", |f| self.outputs.iter().fold(&mut f.debug_map(), |f, output| {
-                f.key_with(|f| fmt::Pointer::fmt(output, f)).value(output)
-            }).finish())
-            .field_with("edges", |f| f.debug_list().entries(self.edges.iter_ordered()).finish())
-            .finish()
-    }
 }
 
 // probably a better way to do this but it works for now lmao

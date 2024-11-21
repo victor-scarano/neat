@@ -1,5 +1,5 @@
 use crate::{pop::Pop, node::*, node::Accum};
-use core::{cell::Cell, cmp, hash, mem::ManuallyDrop, pin::Pin};
+use core::{cell::Cell, cmp, fmt, hash, mem::ManuallyDrop, pin::Pin};
 use std::array;
 use hashbrown::HashMap;
 
@@ -32,8 +32,12 @@ impl Inner {
         self.innov - I
     }
 
-    pub fn eval(self, map: &mut HashMap<Head, Accum>) -> f32 {
-        let input = map.get_mut(&Head::from(self)).unwrap().eval(self.aggregator);
+    fn from_inner(&self) -> Output {
+        ManuallyDrop::new(Box::into_pin(unsafe { Box::from_raw(self as *const _ as *mut _) }))
+    }
+
+    pub fn eval(&self, map: &mut HashMap<Head, Accum>) -> f32 {
+        let input = map.get_mut(&Head::from(self.from_inner())).unwrap().eval(self.aggregator);
         self.activate(self.bias() + (self.response() * input))
     }
 }
@@ -77,6 +81,14 @@ impl<const I: usize, const O: usize> Outputs<I, O> {
 
     pub fn iter(&self) -> Iter<I, O> {
         Iter { outputs: self, index: 0 }
+    }
+}
+
+impl<const I: usize, const O: usize> fmt::Debug for Outputs<I, O> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.iter().fold(&mut f.debug_map(), |f, ref output| {
+            f.key_with(|f| fmt::Pointer::fmt(output, f)).value(output)
+        }).finish()
     }
 }
 
