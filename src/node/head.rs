@@ -1,21 +1,24 @@
-use crate::node::*;
+use crate::node::{self, Node, Tail};
 use core::{fmt, pin::Pin};
+
+type Hidden<'a> = Pin<&'a node::Hidden>;
+type Output<'a> = Pin<&'a node::Output>;
 
 #[derive(Eq, Copy, Clone, Debug, Hash, PartialEq)]
 pub enum Head<'genome> {
-    Hidden(Pin<&'genome Hidden>),
-    Output(Pin<&'genome Output>),
+    Hidden(Hidden<'genome>),
+    Output(Output<'genome>),
 }
 
 impl Head<'_> {
-    pub fn hidden(&self) -> Option<Pin<&Hidden>> {
+    pub fn hidden(&self) -> Option<Hidden> {
         match self {
             Self::Hidden(hidden) => Some(*hidden),
             Self::Output(_) => None,
         }
     }
 
-    pub fn output(&self) -> Option<Pin<&Output>> {
+    pub fn output(&self) -> Option<Output> {
         match self {
             Self::Hidden(_) => None,
             Self::Output(output) => Some(*output),
@@ -91,26 +94,26 @@ impl fmt::Pointer for Head<'_> {
     }
 }
 
-impl<'genome> From<Pin<&'genome Hidden>> for Head<'genome> {
-    fn from(value: Pin<&'genome Hidden>) -> Self {
+impl<'genome> From<Hidden<'genome>> for Head<'genome> {
+    fn from(value: Hidden<'genome>) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl<'genome> From<Pin<&'genome Output>> for Head<'genome> {
-    fn from(value: Pin<&'genome Output>) -> Self {
+impl<'genome> From<Output<'genome>> for Head<'genome> {
+    fn from(value: Output<'genome>) -> Self {
         Self::Output(value)
     }
 }
 
-impl PartialEq<Pin<&Hidden>> for Head<'_> {
-    fn eq(&self, rhs: &Pin<&Hidden>) -> bool {
+impl PartialEq<Hidden<'_>> for Head<'_> {
+    fn eq(&self, rhs: &Hidden) -> bool {
         self.hidden().and_then(|lhs| Some(lhs == *rhs)).is_some()
     }
 }
 
-impl PartialEq<Pin<&Output>> for Head<'_> {
-    fn eq(&self, rhs: &Pin<&Output>) -> bool {
+impl PartialEq<Output<'_>> for Head<'_> {
+    fn eq(&self, rhs: &Output) -> bool {
         self.output().and_then(|lhs| Some(lhs == *rhs)).is_some()
     }
 }
