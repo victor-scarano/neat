@@ -1,11 +1,9 @@
 use crate::{edge::Edge, pop::Pop, node::*, node::Accum};
-use core::{cell::Cell, cmp, fmt, hash, marker::PhantomPinned, mem::ManuallyDrop, pin::Pin};
+use core::{cell::{Cell, UnsafeCell}, cmp, fmt, hash, marker::PhantomPinned, pin::Pin};
 use hashbrown::{HashMap, HashSet};
 
-pub type Hidden = ManuallyDrop<Pin<Box<Inner>>>;
-
 #[derive(Clone, Debug)]
-struct Inner {
+pub struct Hidden {
     layer: Cell<usize>,
     activation: Cell<fn(f32) -> f32>,
     aggregator: fn(&[f32]) -> f32,
@@ -15,12 +13,12 @@ struct Inner {
     _pinned: PhantomPinned
 }
 
-impl Inner {
-    fn from_edge(edge: &Edge) -> *mut Self {
+impl Hidden {
+    fn from_edge(edge: &Edge) -> Pin<Box<Self>> {
         let curr_level = edge.tail.layer();
         edge.head.update_layer(curr_level + 1);
 
-        Box::into_raw(Box::new(Self {
+        Box::pin(Self {
             layer: Cell::new(curr_level),
             activation: Cell::new(|x| x),
             aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
@@ -28,24 +26,16 @@ impl Inner {
             bias: 0.0,
             innov: Pop::next_node_innov(),
             _pinned: PhantomPinned
-        }))
+        })
     }
 
-    fn from_inner(&self) -> Hidden {
-        ManuallyDrop::new(Box::into_pin(unsafe { Box::from_raw(self as *const _ as *mut _) }))
-    }
-
-    fn from_raw_inner(inner: *mut Self) -> Hidden {
-        ManuallyDrop::new(Box::into_pin(unsafe { Box::from_raw(inner) }))
-    }
-
-    pub fn eval(&self, weight: f32, map: &mut HashMap<Head, Accum>) -> f32 {
-        let input = map.get_mut(&Head::from(self.from_inner())).unwrap().eval(self.aggregator);
+    pub fn eval<'a>(self: Pin<&'a Self>, weight: f32, map: &mut HashMap<Head<'a>, Accum>) -> f32 {
+        let input = map.get_mut(&Head::from(self)).unwrap().eval(self.aggregator);
         weight * self.activate(self.bias() + (self.response() * input))
     }
 }
 
-impl Node for Inner {
+impl Node for Hidden {
     fn layer(&self) -> usize { self.layer.get() }
     fn bias(&self) -> f32 { self.bias }
     fn innov(&self) -> usize { self.innov }
@@ -55,9 +45,9 @@ impl Node for Inner {
     fn aggregator(&self) -> fn(&[f32]) -> f32 { self.aggregator }
 }
 
-impl Eq for Inner {}
+impl Eq for Hidden {}
 
-impl hash::Hash for Inner {
+impl hash::Hash for Hidden {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.response.to_ne_bytes().hash(state);
         self.bias.to_ne_bytes().hash(state);
@@ -65,45 +55,45 @@ impl hash::Hash for Inner {
     }
 }
 
-impl PartialEq for Inner {
+impl PartialEq for Hidden {
     fn eq(&self, other: &Self) -> bool {
         self.response == other.response && self.bias == other.bias && self.innov == other.innov
     }
 }
 
-pub struct Hiddens(HashSet<*mut Inner>);
+pub struct HiddenArena(UnsafeCell<HashSet<Pin<Box<Hidden>>>>);
 
-impl Hiddens {
+impl HiddenArena {
+    fn hash_set(&self) -> &HashSet<Pin<Box<Hidden>>> {
+        unsafe { &*self.0.get() }
+    }
+
+    fn hash_set_mut(&self) -> &mut HashSet<Pin<Box<Hidden>>> {
+        unsafe { &mut *self.0.get() }
+    }
+
     pub fn new() -> Self {
-        Self(HashSet::new())
+        Self(UnsafeCell::new(HashSet::new()))
     }
 
     // must always insert, but cant check to make sure it inserted
     // we want insert_then_get functionality
-    pub fn insert_from_edge_and_get(&mut self, edge: &Edge) -> Hidden {
-        Inner::from_raw_inner(*self.0.get_or_insert(Inner::from_edge(edge)))
+    pub fn insert_from_edge_and_get(&self, edge: &Edge) -> Pin<&Hidden> {
+        self.hash_set_mut().get_or_insert(Hidden::from_edge(edge)).as_ref()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Hidden> + '_ {
-        self.0.iter().copied().map(Inner::from_raw_inner)
+    pub fn iter(&self) -> impl Iterator<Item = Pin<&Hidden>> {
+        self.hash_set().iter().map(<Pin<Box<Hidden>>>::as_ref)
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.hash_set().len()
     }
 }
 
-impl Drop for Hiddens {
-    fn drop(&mut self) {
-        for raw in self.0.iter() {
-            drop(unsafe { Box::from_raw(*raw) });
-        }
-    }
-}
-
-impl fmt::Debug for Hiddens {
+impl fmt::Debug for HiddenArena {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.iter().fold(&mut f.debug_map(), |f, hidden| {
+        self.hash_set().iter().fold(&mut f.debug_map(), |f, hidden| {
             f.key_with(|f| fmt::Pointer::fmt(hidden, f)).value(hidden)
         }).finish()
     }

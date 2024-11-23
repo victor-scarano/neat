@@ -1,24 +1,24 @@
-use super::*;
-use core::{fmt, ptr};
+use crate::node::*;
+use core::{fmt, ptr, pin::Pin};
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Tail {
-    Input(Input),
-    Hidden(Hidden),
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Tail<'genome> {
+    Input(Pin<&'genome Input>),
+    Hidden(Pin<&'genome Hidden>),
 }
 
-impl Tail {
-    pub fn input(&self) -> Option<&Input> {
+impl Tail<'_> {
+    pub fn input(&self) -> Option<Pin<&Input>> {
         match self {
-            Self::Input(input) => Some(input),
+            Self::Input(input) => Some(*input),
             Self::Hidden(_) => None,
         }
     }
 
-    pub fn hidden(&self) -> Option<&Hidden> {
+    pub fn hidden(&self) -> Option<Pin<&Hidden>> {
         match self {
             Self::Input(_) => None,
-            Self::Hidden(hidden) => Some(hidden),
+            Self::Hidden(hidden) => Some(*hidden),
         }
     }
 
@@ -30,7 +30,7 @@ impl Tail {
     }
 }
 
-impl Node for Tail {
+impl Node for Tail<'_> {
     fn layer(&self) -> usize {
         match self {
             Self::Input(input) => input.layer(),
@@ -61,7 +61,7 @@ impl Node for Tail {
     fn aggregator(&self) -> fn(&[f32]) -> f32 { todo!(); }
 }
 
-impl fmt::Pointer for Tail {
+impl fmt::Pointer for Tail<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Input(ref input) => fmt::Pointer::fmt(&input, f),
@@ -70,25 +70,25 @@ impl fmt::Pointer for Tail {
     }
 }
 
-impl From<Hidden> for Tail {
-    fn from(value: Hidden) -> Self {
+impl<'genome> From<Pin<&'genome Hidden>> for Tail<'genome> {
+    fn from(value: Pin<&'genome Hidden>) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl PartialEq<Input> for Tail {
-    fn eq(&self, rhs: &Input) -> bool {
-        self.input().and_then(|lhs| Some(*lhs == *rhs)).is_some()
+impl PartialEq<Pin<&Input>> for Tail<'_> {
+    fn eq(&self, rhs: &Pin<&Input>) -> bool {
+        self.input().and_then(|lhs| Some(lhs == *rhs)).is_some()
     }
 }
 
-impl PartialEq<Hidden> for Tail {
-    fn eq(&self, rhs: &Hidden) -> bool {
-        self.hidden().and_then(|lhs| Some(*lhs == *rhs)).is_some()
+impl PartialEq<Pin<&Hidden>> for Tail<'_> {
+    fn eq(&self, rhs: &Pin<&Hidden>) -> bool {
+        self.hidden().and_then(|lhs| Some(lhs == *rhs)).is_some()
     }
 }
 
-impl PartialEq<Head> for Tail {
+impl PartialEq<Head<'_>> for Tail<'_> {
     fn eq(&self, other: &Head) -> bool {
         match (self, other) {
             (Self::Hidden(lhs), Head::Hidden(rhs)) => ptr::eq(lhs, rhs),

@@ -1,24 +1,24 @@
-use super::*;
-use core::fmt;
+use crate::node::*;
+use core::{fmt, pin::Pin};
 
-#[derive(Eq, Clone, Debug, Hash, PartialEq)]
-pub enum Head {
-    Hidden(Hidden),
-    Output(Output),
+#[derive(Eq, Copy, Clone, Debug, Hash, PartialEq)]
+pub enum Head<'genome> {
+    Hidden(Pin<&'genome Hidden>),
+    Output(Pin<&'genome Output>),
 }
 
-impl Head {
-    pub fn hidden(&self) -> Option<&Hidden> {
+impl Head<'_> {
+    pub fn hidden(&self) -> Option<Pin<&Hidden>> {
         match self {
-            Self::Hidden(hidden) => Some(hidden),
+            Self::Hidden(hidden) => Some(*hidden),
             Self::Output(_) => None,
         }
     }
 
-    pub fn output(&self) -> Option<&Output> {
+    pub fn output(&self) -> Option<Pin<&Output>> {
         match self {
             Self::Hidden(_) => None,
-            Self::Output(output) => Some(output),
+            Self::Output(output) => Some(*output),
         }
     }
 
@@ -30,7 +30,7 @@ impl Head {
     }
 }
 
-impl Node for Head {
+impl Node for Head<'_> {
     fn layer(&self) -> usize {
         match self {
             Self::Hidden(hidden) => hidden.layer(),
@@ -81,7 +81,7 @@ impl Node for Head {
     }
 }
 
-impl fmt::Pointer for Head {
+impl fmt::Pointer for Head<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             // does slapping a reference before the node give the address of the actual node? it compiles for now
@@ -91,31 +91,31 @@ impl fmt::Pointer for Head {
     }
 }
 
-impl From<Hidden> for Head {
-    fn from(value: Hidden) -> Self {
+impl<'genome> From<Pin<&'genome Hidden>> for Head<'genome> {
+    fn from(value: Pin<&'genome Hidden>) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl From<Output> for Head {
-    fn from(value: Output) -> Self {
+impl<'genome> From<Pin<&'genome Output>> for Head<'genome> {
+    fn from(value: Pin<&'genome Output>) -> Self {
         Self::Output(value)
     }
 }
 
-impl PartialEq<Hidden> for Head {
-    fn eq(&self, rhs: &Hidden) -> bool {
-        self.hidden().and_then(|lhs| Some(*lhs == *rhs)).is_some()
+impl PartialEq<Pin<&Hidden>> for Head<'_> {
+    fn eq(&self, rhs: &Pin<&Hidden>) -> bool {
+        self.hidden().and_then(|lhs| Some(lhs == *rhs)).is_some()
     }
 }
 
-impl PartialEq<Output> for Head {
-    fn eq(&self, rhs: &Output) -> bool {
-        self.output().and_then(|lhs| Some(*lhs == *rhs)).is_some()
+impl PartialEq<Pin<&Output>> for Head<'_> {
+    fn eq(&self, rhs: &Pin<&Output>) -> bool {
+        self.output().and_then(|lhs| Some(lhs == *rhs)).is_some()
     }
 }
 
-impl PartialEq<Tail> for Head {
+impl PartialEq<Tail<'_>> for Head<'_> {
     fn eq(&self, other: &Tail) -> bool {
         match (self, other) {
             (Self::Hidden(lhs), Tail::Hidden(rhs)) => lhs == rhs,

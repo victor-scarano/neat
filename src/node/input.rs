@@ -1,18 +1,17 @@
 use crate::{node::Node, pop::Pop};
-use core::{array, fmt, mem::ManuallyDrop, pin::Pin};
-
-pub type Input = ManuallyDrop<Pin<Box<Inner>>>;
+use core::{array, fmt, marker::PhantomPinned, pin::Pin};
 
 #[derive(Clone, Debug, PartialEq)]
-struct Inner {
+pub struct Input {
     innov: usize,
     bias: f32,
+    _pinned: PhantomPinned,
 }
 
-impl Inner {
+impl Input {
     pub fn new(innov: usize) -> Self {
         Pop::next_node_innov();
-        Self { innov, bias: 0.0 }
+        Self { innov, bias: 0.0, _pinned: PhantomPinned }
     }
 
     // we can use self.innov as the idx for any input node
@@ -25,7 +24,7 @@ impl Inner {
     }
 }
 
-impl Node for Inner {
+impl Node for Input {
     fn layer(&self) -> usize { 0 }
     fn bias(&self) -> f32 { self.bias }
     fn innov(&self) -> usize { self.innov }
@@ -35,15 +34,15 @@ impl Node for Inner {
     fn aggregator(&self) -> fn(&[f32]) -> f32 { panic!(); }
 }
 
-pub struct Inputs<const I: usize>(Pin<Box<[Inner; I]>>);
+pub struct InputArena<const I: usize>(Pin<Box<[Input; I]>>);
 
-impl<const I: usize> Inputs<I> {
+impl<const I: usize> InputArena<I> {
     pub fn new() -> Self {
-        Self(Box::pin(array::from_fn::<_, I, _>(|innov| Inner::new(innov))))
+        Self(Box::pin(array::from_fn::<_, I, _>(|innov| Input::new(innov))))
     }
 
-    pub fn get(&self, index: usize) -> Option<Input> {
-        Some(ManuallyDrop::new(Box::into_pin(unsafe { Box::from_raw(self.0.get(index)? as *const _ as *mut _) })))
+    pub fn get(&self, index: usize) -> Option<Pin<&Input>> {
+        Some(unsafe { Pin::new_unchecked(self.0.get(index)?) })
     }
 
     pub fn iter(&self) -> Iter<I> {
@@ -51,7 +50,7 @@ impl<const I: usize> Inputs<I> {
     }
 }
 
-impl<const I: usize> fmt::Debug for Inputs<I> {
+impl<const I: usize> fmt::Debug for InputArena<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.iter().fold(&mut f.debug_map(), |f, ref input| {
             f.key_with(|f| fmt::Pointer::fmt(input, f)).value(input)
@@ -59,13 +58,13 @@ impl<const I: usize> fmt::Debug for Inputs<I> {
     }
 }
 
-pub struct Iter<'a, const I: usize> {
-    inputs: &'a Inputs<I>,
+pub struct Iter<'genome, const I: usize> {
+    inputs: &'genome InputArena<I>,
     index: usize,
 }
 
-impl<'a, const I: usize> Iterator for Iter<'a, I> {
-    type Item = Input;
+impl<'genome, const I: usize> Iterator for Iter<'genome, I> {
+    type Item = Pin<&'genome Input>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.inputs.get(self.index);

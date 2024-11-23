@@ -1,34 +1,34 @@
 extern crate alloc;
 use crate::{edge::*, node::*};
-use core::{array, cmp, fmt, mem};
-use alloc::{collections::BTreeMap, rc::*, vec::Vec};
-use hashbrown::{HashMap, HashSet};
+use core::{array, fmt};
+use alloc::{collections::BTreeMap, vec::Vec};
+use hashbrown::HashMap;
 use rand::{Rng, seq::IteratorRandom};
 
 #[derive(Debug)]
-pub struct Genome<const I: usize, const O: usize> {
-    pub inputs: Inputs<I>,
-    pub hiddens: Hiddens,
-    pub outputs: Outputs<I, O>,
-    pub edges: Edges,
+pub struct Genome<'genome, const I: usize, const O: usize> {
+    pub inputs: InputArena<I>,
+    pub hiddens: HiddenArena,
+    pub outputs: OutputArena<I, O>,
+    pub edges: Edges<'genome>,
     pub fitness: f32,
 }
 
-impl<const I: usize, const O: usize> Genome<I, O> {
+impl<'genome, const I: usize, const O: usize> Genome<'genome, I, O> {
     pub fn new() -> Self {
         assert_ne!(I, 0);
         assert_ne!(O, 0);
 
         Self {
-            inputs: Inputs::new(),
-            hiddens: Hiddens::new(),
-            outputs: Outputs::new(),
+            inputs: InputArena::new(),
+            hiddens: HiddenArena::new(),
+            outputs: OutputArena::new(),
             edges: Edges::new(),
             fitness: 0.0,
         }
     }
 
-    pub fn mutate_add_edge(&mut self, rng: &mut impl Rng) {
+    pub fn mutate_add_edge(&'genome self, rng: &mut impl Rng) {
         let tail = self.inputs.iter().map(Tail::Input)
             .chain(self.hiddens.iter().map(Tail::Hidden))
             .choose_stable(rng).unwrap();
@@ -42,7 +42,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         self.edges.insert(edge);
     }
 
-    pub fn mutate_split_edge(&mut self, rng: &mut impl Rng) {
+    pub fn mutate_split_edge(&'genome self, rng: &mut impl Rng) {
         let edge = self.edges.iter_ordered()
             .filter(|edge| edge.enabled.get())
             .choose_stable(rng).unwrap()
@@ -57,7 +57,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         self.edges.insert(last);
     }
 
-    pub fn mutate_weight(&mut self) {
+    pub fn mutate_weight(&self) {
         todo!()
     }
 
@@ -155,7 +155,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
 
 // probably a better way to do this but it works for now lmao
 // sometimes nodes go out of order in their subgraph
-impl<const I: usize, const O: usize> fmt::Display for Genome<I, O> {
+impl<const I: usize, const O: usize> fmt::Display for Genome<'_, I, O> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "digraph genome {{")?;
 
