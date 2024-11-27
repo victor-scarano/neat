@@ -3,12 +3,8 @@ name = "neat"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies.hashbrown]
-version = "0.15.1"
-features = ["default-hasher"]
-default-features = false
+[dependencies]
+bumpalo = { version = "3.16.0", default-features = false, features = ["allocator_api", "boxed"] }
+hashbrown = { version = "0.15.2", default-features = false, features = ["default-hasher"] }
+rand = { version = "0.8.5", default-features = false, features = ["alloc", "small_rng"] }
 
-[dependencies.rand]
-version = "0.8.5"
-features = ["small_rng"]
-default-features = false

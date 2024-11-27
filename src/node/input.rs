@@ -1,17 +1,19 @@
+extern crate alloc;
 use crate::{node::Node, pop::Pop};
-use core::{array, fmt, marker::PhantomPinned, pin::Pin};
+use core::{array, fmt, slice};
+use alloc::rc::Rc;
+use bumpalo::{boxed::Box, Bump};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Input {
     innov: usize,
     bias: f32,
-    _pinned: PhantomPinned,
 }
 
 impl Input {
-    pub fn new(innov: usize) -> Self {
+    pub fn new_in(innov: usize, bump: &Bump) -> Rc<Self, &Bump> {
         Pop::next_node_innov();
-        Self { innov, bias: 0.0, _pinned: PhantomPinned }
+        Rc::new_in(Self { innov, bias: 0.0 }, bump)
     }
 
     // we can use self.innov as the idx for any input node
@@ -34,42 +36,27 @@ impl Node for Input {
     fn aggregator(&self) -> fn(&[f32]) -> f32 { panic!(); }
 }
 
-pub struct InputArena<const I: usize>(Pin<Box<[Input; I]>>);
+pub struct Inputs<'genome, const I: usize>(Box<'genome, [Rc<Input, &'genome Bump>; I]>);
 
-impl<const I: usize> InputArena<I> {
-    pub fn new() -> Self {
-        Self(Box::pin(array::from_fn::<_, I, _>(|innov| Input::new(innov))))
+impl<'genome, const I: usize> Inputs<'genome, I> {
+    pub fn new_in(bump: &'genome Bump) -> Self {
+        Self(Box::new_in(array::from_fn::<_, I, _>(|innov| Input::new_in(innov, bump)), bump))
     }
 
-    pub fn get(&self, index: usize) -> Option<Pin<&Input>> {
-        Some(unsafe { Pin::new_unchecked(self.0.get(index)?) })
+    pub fn get(&self, index: usize) -> Option<Rc<Input, &'genome Bump>> {
+        self.0.get(index).cloned()
     }
 
-    pub fn iter(&self) -> Iter<I> {
-        Iter { inputs: self, index: 0 }
+    pub fn iter(&self) -> slice::Iter<Rc<Input, &'genome Bump>> {
+        self.0.iter()
     }
 }
 
-impl<const I: usize> fmt::Debug for InputArena<I> {
+impl<const I: usize> fmt::Debug for Inputs<'_, I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.iter().fold(&mut f.debug_map(), |f, ref input| {
             f.key_with(|f| fmt::Pointer::fmt(input, f)).value(input)
         }).finish()
-    }
-}
-
-pub struct Iter<'genome, const I: usize> {
-    inputs: &'genome InputArena<I>,
-    index: usize,
-}
-
-impl<'genome, const I: usize> Iterator for Iter<'genome, I> {
-    type Item = Pin<&'genome Input>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.inputs.get(self.index);
-        self.index += 1;
-        next
     }
 }
 

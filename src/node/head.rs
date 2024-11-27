@@ -1,27 +1,27 @@
-use crate::node::{self, Node, Tail};
-use core::{fmt, pin::Pin};
+extern crate alloc;
+use crate::node::*;
+use core::fmt;
+use alloc::rc::Rc;
+use bumpalo::Bump;
 
-type Hidden<'a> = Pin<&'a node::Hidden>;
-type Output<'a> = Pin<&'a node::Output>;
-
-#[derive(Eq, Copy, Clone, Debug, Hash, PartialEq)]
+#[derive(Eq, Clone, Debug, Hash, PartialEq)]
 pub enum Head<'genome> {
-    Hidden(Hidden<'genome>),
-    Output(Output<'genome>),
+    Hidden(Rc<Hidden, &'genome Bump>),
+    Output(Rc<Output, &'genome Bump>),
 }
 
-impl Head<'_> {
-    pub fn hidden(&self) -> Option<Hidden> {
+impl Head {
+    pub fn hidden(&self) -> Option<Rc<Hidden>> {
         match self {
-            Self::Hidden(hidden) => Some(*hidden),
+            Self::Hidden(hidden) => Some(hidden.clone()),
             Self::Output(_) => None,
         }
     }
 
-    pub fn output(&self) -> Option<Output> {
+    pub fn output(&self) -> Option<Rc<Output>> {
         match self {
             Self::Hidden(_) => None,
-            Self::Output(output) => Some(*output),
+            Self::Output(output) => Some(output.clone()),
         }
     }
 
@@ -33,7 +33,7 @@ impl Head<'_> {
     }
 }
 
-impl Node for Head<'_> {
+impl Node for Head {
     fn layer(&self) -> usize {
         match self {
             Self::Hidden(hidden) => hidden.layer(),
@@ -84,7 +84,7 @@ impl Node for Head<'_> {
     }
 }
 
-impl fmt::Pointer for Head<'_> {
+impl fmt::Pointer for Head {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             // does slapping a reference before the node give the address of the actual node? it compiles for now
@@ -94,36 +94,27 @@ impl fmt::Pointer for Head<'_> {
     }
 }
 
-impl<'genome> From<Hidden<'genome>> for Head<'genome> {
-    fn from(value: Hidden<'genome>) -> Self {
+impl From<Rc<Hidden>> for Head {
+    fn from(value: Rc<Hidden>) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl<'genome> From<Output<'genome>> for Head<'genome> {
-    fn from(value: Output<'genome>) -> Self {
+impl From<Rc<Output, &Bump>> for Head {
+    fn from(value: Rc<Output, &Bump>) -> Self {
         Self::Output(value)
     }
 }
 
-impl PartialEq<Hidden<'_>> for Head<'_> {
-    fn eq(&self, rhs: &Hidden) -> bool {
+impl PartialEq<Rc<Hidden>> for Head {
+    fn eq(&self, rhs: &Rc<Hidden>) -> bool {
         self.hidden().and_then(|lhs| Some(lhs == *rhs)).is_some()
     }
 }
 
-impl PartialEq<Output<'_>> for Head<'_> {
-    fn eq(&self, rhs: &Output) -> bool {
+impl PartialEq<Rc<Output>> for Head {
+    fn eq(&self, rhs: &Rc<Output>) -> bool {
         self.output().and_then(|lhs| Some(lhs == *rhs)).is_some()
-    }
-}
-
-impl PartialEq<Tail<'_>> for Head<'_> {
-    fn eq(&self, other: &Tail) -> bool {
-        match (self, other) {
-            (Self::Hidden(lhs), Tail::Hidden(rhs)) => lhs == rhs,
-            _ => false
-        }
     }
 }
 

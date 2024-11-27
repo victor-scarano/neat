@@ -1,58 +1,46 @@
 extern crate alloc;
 use crate::{edge::*, node::*};
-use core::{array, fmt};
-use alloc::{collections::BTreeMap, vec::Vec};
+use core::{array, fmt, marker::PhantomPinned, pin::Pin};
+use alloc::{collections::BTreeMap, vec::Vec, rc::Rc};
+use bumpalo::Bump;
 use hashbrown::HashMap;
 use rand::{Rng, seq::IteratorRandom};
 
 #[derive(Debug)]
 pub struct Genome<'genome, const I: usize, const O: usize> {
-    pub inputs: InputArena<I>,
-    pub hiddens: HiddenArena,
-    pub outputs: OutputArena<I, O>,
+    pub inputs: Inputs<'genome, I>,
+    pub outputs: Outputs<'genome, O>,
     pub edges: Edges<'genome>,
     pub fitness: f32,
 }
 
 impl<'genome, const I: usize, const O: usize> Genome<'genome, I, O> {
-    pub fn new() -> Self {
+    pub fn new_in(bump: &'genome Bump) -> Self {
         assert_ne!(I, 0);
         assert_ne!(O, 0);
 
+        let inputs = Inputs::new_in(bump);
+        let outputs = Outputs::new_in::<I>(bump);
+
         Self {
-            inputs: InputArena::new(),
-            hiddens: HiddenArena::new(),
-            outputs: OutputArena::new(),
+            inputs,
+            outputs,
             edges: Edges::new(),
             fitness: 0.0,
         }
     }
 
-    pub fn mutate_add_edge(&'genome self, rng: &mut impl Rng) {
-        let tail = self.inputs.iter().map(Tail::Input)
-            .chain(self.hiddens.iter().map(Tail::Hidden))
-            .choose_stable(rng).unwrap();
-
-        let head = self.hiddens.iter().map(Head::Hidden)
-            .chain(self.outputs.iter().map(Head::Output))
-            .filter(|head| *head != tail)
-            .choose_stable(rng).unwrap();
-
-        let edge = Edge::new(tail, head);
+    pub fn mutate_add_edge(&mut self, rng: &mut impl Rng) {
+        let (first, second) = self.edges.random_edges(rng);
+        // TODO: allow for any non-equal node combo from the random edges to be used
+        let edge = Edge::new(first.tail.clone(), second.head.clone());
         self.edges.insert(edge);
     }
 
-    pub fn mutate_split_edge(&'genome self, rng: &mut impl Rng) {
-        let edge = self.edges.iter_ordered()
-            .filter(|edge| edge.enabled.get())
-            .choose_stable(rng).unwrap()
-            .disable();
-
-        let middle = self.hiddens.insert_from_edge_and_get(edge);
-
-        let first = Edge::new(edge.tail, middle);
-        let last = Edge::new(middle, edge.head);
-
+    pub fn mutate_split_edge(&mut self, rng: &mut impl Rng) {
+        let edge = self.edges.iter_ordered().filter(|edge| edge.enabled.get()).choose_stable(rng).unwrap();
+        edge.enabled.set(false);
+        let (first, last) = edge.split();
         self.edges.insert(first);
         self.edges.insert(last);
     }
@@ -155,7 +143,8 @@ impl<'genome, const I: usize, const O: usize> Genome<'genome, I, O> {
 
 // probably a better way to do this but it works for now lmao
 // sometimes nodes go out of order in their subgraph
-impl<const I: usize, const O: usize> fmt::Display for Genome<'_, I, O> {
+/*
+impl<const I: usize, const O: usize> fmt::Display for Genome<I, O> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "digraph genome {{")?;
 
@@ -215,4 +204,4 @@ impl<const I: usize, const O: usize> fmt::Display for Genome<'_, I, O> {
         Ok(())
     }
 }
-
+*/

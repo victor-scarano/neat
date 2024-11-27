@@ -1,12 +1,13 @@
 extern crate alloc;
 use crate::{node::*, pop::Pop};
-use core::{cell::{Cell, UnsafeCell}, cmp::Ordering, fmt, hash};
+use core::{cell::Cell, cmp::Ordering, fmt, hash};
 use alloc::{collections::BTreeSet, rc::*};
 use hashbrown::HashSet;
+use rand::{seq::IteratorRandom, Rng};
 
 #[derive(Clone)]
 pub struct Edge<'genome> {
-    pub tail: Tail<'genome>,
+    pub tail: Tail,
     pub head: Head<'genome>,
     pub weight: f32,
     pub enabled: Cell<bool>,
@@ -14,8 +15,8 @@ pub struct Edge<'genome> {
     pub innov: usize,
 }
 
-impl<'genome> Edge<'genome> {
-    pub fn new(tail: impl Into<Tail<'genome>>, head: impl Into<Head<'genome>>) -> Self {
+impl Edge<'_> {
+    pub fn new(tail: impl Into<Tail>, head: impl Into<Head>) -> Self {
         let tail = tail.into();
         let head = head.into();
 
@@ -33,9 +34,11 @@ impl<'genome> Edge<'genome> {
         }
     }
 
-    pub fn disable(&self) -> &Self {
-        self.enabled.set(false);
-        self
+    pub fn split(&self) -> (Edge, Edge) {
+        let middle = Hidden::from_edge(self);
+        let first = Edge::new(self.tail.clone(), middle.clone());
+        let last = Edge::new(middle, self.head.clone());
+        (first, last)
     }
 }
 
@@ -86,79 +89,80 @@ impl PartialOrd for Edge<'_> {
 // TODO: Write custom Rc implementation to optimize for only two possible references so that the RcInner allocation
 // isn't as large as it normally is
 pub struct Edges<'genome> {
-    btree_set: UnsafeCell<BTreeSet<Rc<Edge<'genome>>>>,
-    hash_set: UnsafeCell<HashSet<Rc<Edge<'genome>>>>,
+    btree_set: BTreeSet<Rc<Edge<'genome>>>,
+    hash_set: HashSet<Rc<Edge<'genome>>>,
 }
 
 impl<'genome> Edges<'genome> {
-    fn btree_set(&self) -> &BTreeSet<Rc<Edge<'genome>>> {
-        unsafe { &*self.btree_set.get() }
-    }
-
-    fn btree_set_mut(&self) -> &mut BTreeSet<Rc<Edge<'genome>>> {
-        unsafe { &mut *self.btree_set.get() }
-    }
-
-    fn hash_set(&self) -> &HashSet<Rc<Edge<'genome>>> {
-        unsafe { &*self.hash_set.get() }
-    }
-
-    fn hash_set_mut(&self) -> &mut HashSet<Rc<Edge<'genome>>> {
-        unsafe { &mut *self.hash_set.get() }
-    }
-
     pub fn new() -> Self {
         Self {
-            btree_set: UnsafeCell::new(BTreeSet::new()),
-            hash_set: UnsafeCell::new(HashSet::new()),
+            btree_set: BTreeSet::new(),
+            hash_set: HashSet::new(),
         }
     }
 
-    pub fn from(matching: Vec<&Edge<'_>>, disjoint: Vec<&Edge<'_>>) -> Self {
+    pub fn from(matching: Vec<&Edge<'genome>>, disjoint: Vec<&Edge<'genome>>) -> Self {
         todo!()
     }
 
     pub fn get(&self, edge: &Edge<'genome>) -> &Edge<'genome> {
-        self.hash_set().get(edge).unwrap()
+        self.hash_set.get(edge).unwrap()
     }
 
-    pub fn insert(&self, edge: Edge<'genome>) {
+    pub fn insert(&mut self, edge: Edge<'genome>) {
         let edge = Rc::new(edge);
 
-        let inserted = self.btree_set_mut().insert(edge.clone());
+        let inserted = self.btree_set.insert(edge.clone());
         assert!(inserted);
 
-        let inserted = self.hash_set_mut().insert(edge.clone());
+        let inserted = self.hash_set.insert(edge.clone());
         assert!(inserted);
+    }
+
+    // returns two random nonequal edges
+    pub fn random_edges(&self, rng: &mut impl Rng) -> (&Edge<'genome>, &Edge<'genome>) {
+        assert!(self.len() >= 1);
+
+        let mut edges = loop {
+            let edges = self.iter_ordered().choose_multiple(rng, 2);
+
+            if edges[0] != edges[1] {
+                break edges;
+            }
+        };
+
+        edges.sort_unstable();
+
+        (edges[0], edges[1])
     }
 
     pub fn iter_ordered(&self) -> impl Iterator<Item = &Edge<'genome>> {
-        self.btree_set().iter().map(<Rc<Edge> as AsRef<Edge>>::as_ref)
+        self.btree_set.iter().map(<Rc<Edge> as AsRef<Edge>>::as_ref)
     }
 
     pub fn iter_unordered(&self) -> impl Iterator<Item = &Edge<'genome>> {
-        self.hash_set().iter().map(<Rc<Edge> as AsRef<Edge>>::as_ref)
+        self.hash_set.iter().map(<Rc<Edge> as AsRef<Edge>>::as_ref)
     }
 
     pub fn hash_difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Edge<'genome>> {
-        self.hash_set().difference(&other.hash_set()).map(<Rc<Edge> as AsRef<Edge>>::as_ref)
+        self.hash_set.difference(&other.hash_set).map(<Rc<Edge> as AsRef<Edge>>::as_ref)
     }
 
     pub fn hash_intersection<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Edge<'genome>> {
-        self.hash_set()
-            .intersection(&other.hash_set())
+        self.hash_set
+            .intersection(&other.hash_set)
             .map(<Rc<Edge> as AsRef<Edge>>::as_ref)
     }
 
     pub fn hash_symmetric_difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a Edge<'genome>> {
-        self.hash_set()
-            .symmetric_difference(&other.hash_set())
+        self.hash_set
+            .symmetric_difference(&other.hash_set)
             .map(<Rc<Edge> as AsRef<Edge>>::as_ref)
     }
 
     pub fn len(&self) -> usize {
-        assert_eq!(self.btree_set().len(), self.hash_set().len());
-        self.hash_set().len() // need to check if one is faster than the other
+        assert_eq!(self.btree_set.len(), self.hash_set.len());
+        self.hash_set.len() // need to check if one is faster than the other
     }
 }
 
