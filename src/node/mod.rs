@@ -1,4 +1,5 @@
 mod accum;
+mod bump;
 mod input;
 mod hidden;
 mod output;
@@ -6,6 +7,7 @@ mod head;
 mod tail;
 
 pub use accum::Accum;
+pub use bump::Bump;
 pub use head::*;
 pub use hidden::*;
 pub use input::*;

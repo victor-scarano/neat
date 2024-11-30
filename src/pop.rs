@@ -4,7 +4,7 @@ use hashbrown::HashMap;
 
 thread_local! {
     static CONNS: RefCell<HashMap<(usize, usize), usize>> = RefCell::new(HashMap::new());
-    static NODES: Cell<usize> = Cell::new(0);
+    static NODES: Cell<usize> = const { Cell::new(0) };
 }
 
 pub struct Pop;

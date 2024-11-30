@@ -2,7 +2,6 @@ extern crate alloc;
 use crate::{pop::Pop, node::*, node::Accum};
 use core::{array, cell::Cell, cmp, fmt, hash, slice};
 use alloc::rc::Rc;
-use bumpalo::{boxed::Box, Bump};
 use hashbrown::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -16,7 +15,7 @@ pub struct Output {
 }
 
 impl Output {
-    pub fn new_in<const I: usize>(innov: usize, bump: &Bump) -> Rc<Self, &Bump> {
+    pub fn new_in<const I: usize>(innov: usize, bump: Bump) -> Rc<Self, Bump> {
         Pop::next_node_innov();
         Rc::new_in(
             Self {
@@ -31,13 +30,17 @@ impl Output {
         )
     }
 
-    pub fn idx<const I: usize>(&self) -> usize {
+    pub fn index<const I: usize>(&self) -> usize {
         self.innov - I
     }
 
-    pub fn eval(self: &Rc<Self, &Bump>, map: &mut HashMap<Head, Accum>) -> f32 {
+    pub fn eval(self: &Rc<Self, Bump>, map: &mut HashMap<Head, Accum>) -> f32 {
         let input = map.get_mut(&Head::from(self.clone())).unwrap().eval(self.aggregator);
         self.activate(self.bias() + (self.response() * input))
+    }
+
+    pub fn clone_in(&self, bump: Bump) -> Rc<Self, Bump> {
+        Rc::new_in(self.clone(), bump)
     }
 }
 
@@ -62,15 +65,14 @@ impl hash::Hash for Output {
     }
 }
 
-// a heap allocated array of outputs that guarantees that outputs do not move
-pub struct Outputs<'genome, const O: usize>(Box<'genome, [Rc<Output, &'genome Bump>; O]>);
+pub struct Outputs<const O: usize>(Box<[Rc<Output, Bump>; O]>);
 
-impl<'genome, const O: usize> Outputs<'genome, O> {
-    pub fn new_in<const I: usize>(bump: &'genome Bump) -> Self {
-        Self(Box::new_in(array::from_fn::<_, O, _>(|innov| Output::new_in::<I>(innov, bump)), bump))
+impl<const O: usize> Outputs<O> {
+    pub fn new_in<const I: usize>(bump: Bump) -> Self {
+        Self(Box::new(array::from_fn::<_, O, _>(|innov| Output::new_in::<I>(innov, bump.clone()))))
     }
 
-    pub fn get(&self, index: usize) -> Option<Rc<Output, &'genome Bump>> {
+    pub fn get(&self, index: usize) -> Option<Rc<Output, Bump>> {
         self.0.get(index).cloned()
     }
 
@@ -78,16 +80,24 @@ impl<'genome, const O: usize> Outputs<'genome, O> {
         self.get(n).unwrap().eval(map)
     }
 
-    pub fn iter(&self) -> slice::Iter<Rc<Output, &'genome Bump>> {
+    pub fn iter(&self) -> slice::Iter<Rc<Output, Bump>> {
         self.0.iter()
     }
 }
 
-impl<const O: usize> fmt::Debug for Outputs<'_, O> {
+impl<const O: usize> fmt::Debug for Outputs<O> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.iter().fold(&mut f.debug_map(), |f, ref output| {
             f.key_with(|f| fmt::Pointer::fmt(output, f)).value(output)
         }).finish()
+    }
+}
+
+impl<const O: usize> TryFrom<Vec<Rc<Output, Bump>>> for Outputs<O> {
+    type Error = <Box<[Rc<Output, Bump>; O]> as TryFrom<Vec<Rc<Output, Bump>>>>::Error;
+
+    fn try_from(value: Vec<Rc<Output, Bump>>) -> Result<Self, Self::Error> {
+        Ok(Self(value.try_into()?))
     }
 }
 

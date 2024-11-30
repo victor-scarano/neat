@@ -15,23 +15,30 @@ pub struct Hidden {
 }
 
 impl Hidden {
-    pub fn from_edge(edge: &Edge) -> Rc<Self> {
+    pub fn from_edge(edge: &Edge) -> Rc<Self, Bump> {
         let curr_level = edge.tail.layer();
         edge.head.update_layer(curr_level + 1);
 
-        Rc::new(Self {
-            layer: Cell::new(curr_level),
-            activation: Cell::new(|x| x),
-            aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
-            response: 1.0,
-            bias: 0.0,
-            innov: Pop::next_node_innov(),
-        })
+        Rc::new_in(
+            Self {
+                layer: Cell::new(curr_level),
+                activation: Cell::new(|x| x),
+                aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
+                response: 1.0,
+                bias: 0.0,
+                innov: Pop::next_node_innov(),
+            },
+            edge.tail.allocator()
+        )
     }
 
-    pub fn eval(self: &Rc<Self>, weight: f32, map: &mut HashMap<Head, Accum>) -> f32 {
+    pub fn eval(self: &Rc<Self, Bump>, weight: f32, map: &mut HashMap<Head, Accum>) -> f32 {
         let input = map.get_mut(&Head::from(self.clone())).unwrap().eval(self.aggregator);
         weight * self.activate(self.bias() + (self.response() * input))
+    }
+
+    pub fn clone_in(&self, bump: Bump) -> Rc<Self, Bump> {
+        Rc::new_in(self.clone(), bump)
     }
 }
 

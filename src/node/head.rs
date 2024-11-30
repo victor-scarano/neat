@@ -2,23 +2,22 @@ extern crate alloc;
 use crate::node::*;
 use core::fmt;
 use alloc::rc::Rc;
-use bumpalo::Bump;
 
 #[derive(Eq, Clone, Debug, Hash, PartialEq)]
-pub enum Head<'genome> {
-    Hidden(Rc<Hidden, &'genome Bump>),
-    Output(Rc<Output, &'genome Bump>),
+pub enum Head {
+    Hidden(Rc<Hidden, Bump>),
+    Output(Rc<Output, Bump>),
 }
 
 impl Head {
-    pub fn hidden(&self) -> Option<Rc<Hidden>> {
+    pub fn hidden(&self) -> Option<Rc<Hidden, Bump>> {
         match self {
             Self::Hidden(hidden) => Some(hidden.clone()),
             Self::Output(_) => None,
         }
     }
 
-    pub fn output(&self) -> Option<Rc<Output>> {
+    pub fn output(&self) -> Option<Rc<Output, Bump>> {
         match self {
             Self::Hidden(_) => None,
             Self::Output(output) => Some(output.clone()),
@@ -29,6 +28,13 @@ impl Head {
         match self {
             Self::Hidden(hidden) => hidden.innov(),
             Self::Output(output) => output.innov(),
+        }
+    }
+
+    pub fn allocator(&self) -> Bump {
+        match self {
+            Self::Hidden(ref hidden) => Rc::allocator(hidden).clone(),
+            Self::Output(ref output) => Rc::allocator(output).clone(),
         }
     }
 }
@@ -94,27 +100,27 @@ impl fmt::Pointer for Head {
     }
 }
 
-impl From<Rc<Hidden>> for Head {
-    fn from(value: Rc<Hidden>) -> Self {
+impl From<Rc<Hidden, Bump>> for Head {
+    fn from(value: Rc<Hidden, Bump>) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl From<Rc<Output, &Bump>> for Head {
-    fn from(value: Rc<Output, &Bump>) -> Self {
+impl From<Rc<Output, Bump>> for Head {
+    fn from(value: Rc<Output, Bump>) -> Self {
         Self::Output(value)
     }
 }
 
-impl PartialEq<Rc<Hidden>> for Head {
-    fn eq(&self, rhs: &Rc<Hidden>) -> bool {
-        self.hidden().and_then(|lhs| Some(lhs == *rhs)).is_some()
+impl PartialEq<Rc<Hidden, Bump>> for Head {
+    fn eq(&self, rhs: &Rc<Hidden, Bump>) -> bool {
+        self.hidden().map(|lhs| lhs == *rhs).is_some()
     }
 }
 
-impl PartialEq<Rc<Output>> for Head {
-    fn eq(&self, rhs: &Rc<Output>) -> bool {
-        self.output().and_then(|lhs| Some(lhs == *rhs)).is_some()
+impl PartialEq<Rc<Output, Bump>> for Head {
+    fn eq(&self, rhs: &Rc<Output, Bump>) -> bool {
+        self.output().map(|lhs| lhs == *rhs).is_some()
     }
 }
 
