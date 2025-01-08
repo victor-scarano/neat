@@ -5,36 +5,29 @@ use alloc::rc::Rc;
 
 #[derive(Eq, Clone, Debug, Hash, PartialEq)]
 pub enum Head {
-    Hidden(Rc<Hidden, Bump>),
-    Output(Rc<Output, Bump>),
+    Hidden(RawHidden),
+    Output(RawOutput),
 }
 
 impl Head {
-    pub fn hidden(&self) -> Option<Rc<Hidden, Bump>> {
+    pub fn hidden(&self) -> Option<&Hidden> {
         match self {
-            Self::Hidden(hidden) => Some(hidden.clone()),
+            Self::Hidden(hidden) => Some(hidden.as_ref()),
             Self::Output(_) => None,
         }
     }
 
-    pub fn output(&self) -> Option<Rc<Output, Bump>> {
+    pub fn output(&self) -> Option<&Output> {
         match self {
             Self::Hidden(_) => None,
-            Self::Output(output) => Some(output.clone()),
+            Self::Output(output) => Some(output.as_ref()),
         }
     }
 
     pub fn innov(&self) -> usize {
         match self {
-            Self::Hidden(hidden) => hidden.innov(),
-            Self::Output(output) => output.innov(),
-        }
-    }
-
-    pub fn allocator(&self) -> Bump {
-        match self {
-            Self::Hidden(ref hidden) => Rc::allocator(hidden).clone(),
-            Self::Output(ref output) => Rc::allocator(output).clone(),
+            Self::Hidden(hidden) => hidden.as_ref().innov(),
+            Self::Output(output) => output.as_ref().innov(),
         }
     }
 }
@@ -42,50 +35,50 @@ impl Head {
 impl Node for Head {
     fn layer(&self) -> usize {
         match self {
-            Self::Hidden(hidden) => hidden.layer(),
-            Self::Output(output) => output.layer(),
+            Self::Hidden(hidden) => hidden.as_ref().layer(),
+            Self::Output(output) => output.as_ref().layer(),
         }
     }
 
     fn bias(&self) -> f32 {
         match self {
-            Self::Hidden(hidden) => hidden.bias(),
-            Self::Output(output) => output.bias(),
+            Self::Hidden(hidden) => hidden.as_ref().bias(),
+            Self::Output(output) => output.as_ref().bias(),
         }
     }
 
     fn innov(&self) -> usize {
         match self {
-            Self::Hidden(hidden) => hidden.innov(),
-            Self::Output(output) => output.innov(),
+            Self::Hidden(hidden) => hidden.as_ref().innov(),
+            Self::Output(output) => output.as_ref().innov(),
         }
     }
 
     fn update_layer(&self, layer: usize) {
         match self {
-            Self::Hidden(hidden) => hidden.update_layer(layer),
-            Self::Output(output) => output.update_layer(layer),
+            Self::Hidden(hidden) => hidden.as_ref().update_layer(layer),
+            Self::Output(output) => output.as_ref().update_layer(layer),
         }
     }
 
     fn activate(&self, x: f32) -> f32 {
         match self {
-            Self::Hidden(hidden) => hidden.activate(x),
-            Self::Output(output) => output.activate(x),
+            Self::Hidden(hidden) => hidden.as_ref().activate(x),
+            Self::Output(output) => output.as_ref().activate(x),
         }
     }
 
     fn response(&self) -> f32 {
         match self {
-            Self::Hidden(hidden) => hidden.response(),
-            Self::Output(output) => output.response(),
+            Self::Hidden(hidden) => hidden.as_ref().response(),
+            Self::Output(output) => output.as_ref().response(),
         }
     }
 
     fn aggregator(&self) -> fn(&[f32]) -> f32 {
         match self {
-            Self::Hidden(hidden) => hidden.aggregator(),
-            Self::Output(output) => output.aggregator(),
+            Self::Hidden(hidden) => hidden.as_ref().aggregator(),
+            Self::Output(output) => output.as_ref().aggregator(),
         }
     }
 }
@@ -100,27 +93,27 @@ impl fmt::Pointer for Head {
     }
 }
 
-impl From<Rc<Hidden, Bump>> for Head {
-    fn from(value: Rc<Hidden, Bump>) -> Self {
-        Self::Hidden(value)
+impl From<&Hidden> for Head {
+    fn from(value: &Hidden) -> Self {
+        Self::Hidden(value.into())
     }
 }
 
-impl From<Rc<Output, Bump>> for Head {
-    fn from(value: Rc<Output, Bump>) -> Self {
-        Self::Output(value)
+impl From<&Output> for Head {
+    fn from(value: &Output) -> Self {
+        Self::Output(value.into())
     }
 }
 
-impl PartialEq<Rc<Hidden, Bump>> for Head {
-    fn eq(&self, rhs: &Rc<Hidden, Bump>) -> bool {
-        self.hidden().map(|lhs| lhs == *rhs).is_some()
+impl PartialEq<Hidden> for Head {
+    fn eq(&self, rhs: &Hidden) -> bool {
+        self.hidden().map(|lhs| lhs == rhs).is_some()
     }
 }
 
-impl PartialEq<Rc<Output, Bump>> for Head {
-    fn eq(&self, rhs: &Rc<Output, Bump>) -> bool {
-        self.output().map(|lhs| lhs == *rhs).is_some()
+impl PartialEq<Output> for Head {
+    fn eq(&self, rhs: &Output) -> bool {
+        self.output().map(|lhs| lhs == rhs).is_some()
     }
 }
 

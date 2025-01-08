@@ -1,6 +1,6 @@
 extern crate alloc;
 use crate::{pop::Pop, node::*, node::Accum};
-use core::{array, cell::Cell, cmp, fmt, hash, slice};
+use core::{array, cell::Cell, cmp, fmt, hash::{Hash, Hasher}, slice};
 use alloc::rc::Rc;
 use hashbrown::HashMap;
 
@@ -15,32 +15,25 @@ pub struct Output {
 }
 
 impl Output {
-    pub fn new_in<const I: usize>(innov: usize, bump: Bump) -> Rc<Self, Bump> {
+    pub fn new<const I: usize>(innov: usize) -> Self {
         Pop::next_node_innov();
-        Rc::new_in(
-            Self {
-                layer: 1.into(),
-                activation: Cell::new(|x| x),
-                aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
-                response: 1.0,
-                bias: 0.0,
-                innov: I - innov,
-            },
-            bump
-        )
+        Self {
+            layer: 1.into(),
+            activation: Cell::new(|x| x),
+            aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
+            response: 1.0,
+            bias: 0.0,
+            innov: I - innov,
+        }
     }
 
     pub fn index<const I: usize>(&self) -> usize {
         self.innov - I
     }
 
-    pub fn eval(self: &Rc<Self, Bump>, map: &mut HashMap<Head, Accum>) -> f32 {
+    pub fn eval(&self, map: &mut HashMap<Head, Accum>) -> f32 {
         let input = map.get_mut(&Head::from(self.clone())).unwrap().eval(self.aggregator);
         self.activate(self.bias() + (self.response() * input))
-    }
-
-    pub fn clone_in(&self, bump: Bump) -> Rc<Self, Bump> {
-        Rc::new_in(self.clone(), bump)
     }
 }
 
@@ -56,8 +49,8 @@ impl Node for Output {
 
 impl Eq for Output {}
 
-impl hash::Hash for Output {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+impl Hash for Output {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.layer.get().hash(state);
         self.response.to_bits().hash(state);
         self.bias.to_bits().hash(state);
@@ -65,22 +58,22 @@ impl hash::Hash for Output {
     }
 }
 
-pub struct Outputs<const O: usize>(Box<[Rc<Output, Bump>; O]>);
+pub struct Outputs<const O: usize>(Box<[Output; O]>);
 
 impl<const O: usize> Outputs<O> {
-    pub fn new_in<const I: usize>(bump: Bump) -> Self {
-        Self(Box::new(array::from_fn::<_, O, _>(|innov| Output::new_in::<I>(innov, bump.clone()))))
+    pub fn new<const I: usize>() -> Self {
+        Self(Box::new(array::from_fn::<_, O, _>(|innov| Output::new::<I>(innov))))
     }
 
-    pub fn get(&self, index: usize) -> Option<Rc<Output, Bump>> {
-        self.0.get(index).cloned()
+    pub fn get(&self, index: usize) -> Option<&Output> {
+        self.0.get(index)
     }
 
     pub fn eval_nth(&self, n: usize, map: &mut HashMap<Head, Accum>) -> f32 {
         self.get(n).unwrap().eval(map)
     }
 
-    pub fn iter(&self) -> slice::Iter<Rc<Output, Bump>> {
+    pub fn iter(&self) -> slice::Iter<'_, Output> {
         self.0.iter()
     }
 }
@@ -93,11 +86,31 @@ impl<const O: usize> fmt::Debug for Outputs<O> {
     }
 }
 
-impl<const O: usize> TryFrom<Vec<Rc<Output, Bump>>> for Outputs<O> {
-    type Error = <Box<[Rc<Output, Bump>; O]> as TryFrom<Vec<Rc<Output, Bump>>>>::Error;
+impl<const O: usize> TryFrom<Vec<Output>> for Outputs<O> {
+    type Error = <Box<[Output; O]> as TryFrom<Vec<Output>>>::Error;
 
-    fn try_from(value: Vec<Rc<Output, Bump>>) -> Result<Self, Self::Error> {
+    fn try_from(value: Vec<Output>) -> Result<Self, Self::Error> {
         Ok(Self(value.try_into()?))
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RawOutput(*const Output);
+
+impl AsRef<Output> for RawOutput {
+    fn as_ref(&self) -> &Output {
+        unsafe { &*self.0 }
+    }
+}
+
+impl From<&Output> for RawOutput {
+    fn from(value: &Output) -> Self {
+        Self(value as *const _)
+    }
+}
+
+impl Hash for RawOutput {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ref().hash(state);
+    }
+}

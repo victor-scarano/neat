@@ -7,7 +7,6 @@ use rand::{Rng, seq::IteratorRandom};
 
 #[derive(Debug)]
 pub struct Genome<const I: usize, const O: usize> {
-    pub bump: Bump,
     pub inputs: Inputs<I>,
     pub outputs: Outputs<O>,
     pub edges: Edges,
@@ -19,11 +18,12 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         assert_ne!(I, 0);
         assert_ne!(O, 0);
 
-        let bump = Bump::new();
-        let inputs = Inputs::new_in(bump.clone());
-        let outputs = Outputs::new_in::<I>(bump.clone());
-
-        Self { bump, inputs, outputs, edges: Edges::new(), fitness: 0.0 }
+        Self {
+            inputs: Inputs::new(),
+            outputs: Outputs::new::<I>(),
+            edges: Edges::new(),
+            fitness: 0.0
+        }
     }
 
     pub fn mutate_add_edge(&mut self, rng: &mut impl Rng) {
@@ -34,7 +34,11 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     }
 
     pub fn mutate_split_edge(&mut self, rng: &mut impl Rng) {
-        let edge = self.edges.iter_ordered().filter(|edge| edge.enabled.get()).choose_stable(rng).unwrap();
+        let edge = self.edges
+            .iter_ordered()
+            .filter(|edge| edge.enabled.get())
+            .choose_stable(rng)
+            .unwrap();
         edge.enabled.set(false);
         let (first, last) = edge.split();
         self.edges.insert(first);
@@ -65,7 +69,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     }
 
     pub fn crossover(lhs: Self, rhs: Self, rng: &mut impl Rng) -> Self {
-        Edges::crossover(lhs, rhs, rng)
+        todo!()
     }
 }
 

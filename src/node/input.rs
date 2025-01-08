@@ -1,5 +1,5 @@
 extern crate alloc;
-use crate::{node::{Bump, Node}, pop::Pop};
+use crate::{node::Node, pop::Pop};
 use core::{array, fmt, hash, slice};
 use alloc::rc::Rc;
 
@@ -10,9 +10,9 @@ pub struct Input {
 }
 
 impl Input {
-    pub fn new_in(innov: usize, bump: Bump) -> Rc<Self, Bump> {
+    pub fn new(innov: usize) -> Self {
         Pop::next_node_innov();
-        Rc::new_in(Self { innov, bias: 0.0 }, bump)
+        Self { innov, bias: 0.0 }
     }
 
     // we can use self.innov as the idx for any input node
@@ -22,10 +22,6 @@ impl Input {
 
     pub fn eval<const I: usize>(&self, weight: f32, inputs: [f32; I]) -> f32 {
         weight * (self.bias() + inputs[self.index()])
-    }
-
-    pub fn clone_in(&self, bump: Bump) -> Rc<Self, Bump> {
-        Rc::new_in(self.clone(), bump)
     }
 }
 
@@ -47,18 +43,18 @@ impl hash::Hash for Input {
     }
 }
 
-pub struct Inputs<const I: usize>(Box<[Rc<Input, Bump>; I]>);
+pub struct Inputs<const I: usize>(Box<[Input; I]>);
 
 impl<const I: usize> Inputs<I> {
-    pub fn new_in(bump: Bump) -> Self {
-        Self(Box::new(array::from_fn::<_, I, _>(|innov| Input::new_in(innov, bump.clone()))))
+    pub fn new() -> Self {
+        Self(Box::new(array::from_fn::<_, I, _>(|innov| Input::new(innov))))
     }
 
-    pub fn get(&self, index: usize) -> Option<Rc<Input, Bump>> {
-        self.0.get(index).cloned()
+    pub fn get(&self, index: usize) -> Option<&Input> {
+        self.0.get(index)
     }
 
-    pub fn iter(&self) -> slice::Iter<Rc<Input, Bump>> {
+    pub fn iter(&self) -> slice::Iter<'_, Input> {
         self.0.iter()
     }
 }
@@ -71,11 +67,21 @@ impl<const I: usize> fmt::Debug for Inputs<I> {
     }
 }
 
-impl<const I: usize> TryFrom<Vec<Rc<Input, Bump>>> for Inputs<I> {
-    type Error = <Box<[Rc<Input, Bump>; I]> as TryFrom<Vec<Rc<Input, Bump>>>>::Error;
+impl<const I: usize> TryFrom<Vec<Input>> for Inputs<I> {
+    type Error = <Box<[Input; I]> as TryFrom<Vec<Input>>>::Error;
 
-    fn try_from(value: Vec<Rc<Input, Bump>>) -> Result<Self, Self::Error> {
+    fn try_from(value: Vec<Input>) -> Result<Self, Self::Error> {
         Ok(Self(value.try_into()?))
+    }
+}
+
+// should partial eq check for ptr eq or value eq?
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct RawInput(*const Input);
+
+impl AsRef<Input> for RawInput {
+    fn as_ref(&self) -> &Input {
+        unsafe { &*self.0 }
     }
 }
 
