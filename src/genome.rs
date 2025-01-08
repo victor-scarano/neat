@@ -2,6 +2,7 @@ extern crate alloc;
 use crate::{edge::*, node::*};
 use core::{array, fmt, mem};
 use alloc::{collections::BTreeMap, vec::Vec, rc::Rc};
+use bumpalo::Bump;
 use hashbrown::{HashMap, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
@@ -9,6 +10,7 @@ use rand::{Rng, seq::IteratorRandom};
 pub struct Genome<const I: usize, const O: usize> {
     pub inputs: Inputs<I>,
     pub outputs: Outputs<O>,
+    pub hiddens: Hiddens,
     pub edges: Edges,
     pub fitness: f32,
 }
@@ -21,6 +23,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         Self {
             inputs: Inputs::new(),
             outputs: Outputs::new::<I>(),
+            hiddens: Hiddens::new(),
             edges: Edges::new(),
             fitness: 0.0
         }
@@ -39,8 +42,10 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             .filter(|edge| edge.enabled.get())
             .choose_stable(rng)
             .unwrap();
+
         edge.enabled.set(false);
-        let (first, last) = edge.split();
+
+        let (first, last) = self.hiddens.split_edge(edge);
         self.edges.insert(first);
         self.edges.insert(last);
     }

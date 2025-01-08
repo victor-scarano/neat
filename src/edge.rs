@@ -21,7 +21,6 @@ impl Edge {
     pub fn new(tail: impl Into<Tail>, head: impl Into<Head>) -> Self {
         let tail = tail.into();
         let head = head.into();
-
         assert_ne!(tail, head);
 
         head.update_layer(tail.layer() + 1);
@@ -34,13 +33,6 @@ impl Edge {
             tail,
             head,
         }
-    }
-
-    pub fn split(&self, hiddens: &Hiddens) -> (Edge, Edge) {
-        let middle = hiddens.from_edge(self);
-        let first = Edge::new(self.tail.clone(), middle.into());
-        let last = Edge::new(middle.into(), self.head.clone());
-        (first, last)
     }
 }
 
@@ -178,9 +170,9 @@ impl Edges {
     }
 }
 
-impl iter::Extend<Edge> for Edges {
-    fn extend<T: IntoIterator<Item = Edge>>(&mut self, iter: T) {
-        let mut iter = iter.into_iter().map(Rc::new);
+impl iter::Extend<RawEdge> for Edges {
+    fn extend<T: IntoIterator<Item = RawEdge>>(&mut self, iter: T) {
+        let mut iter = iter.into_iter();
         self.btree.extend(&mut iter);
         self.hash.extend(&mut iter);
     }
@@ -191,3 +183,4 @@ impl fmt::Debug for Edges {
         f.debug_list().entries(self.iter_ordered()).finish()
     }
 }
+

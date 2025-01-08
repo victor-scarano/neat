@@ -4,15 +4,20 @@ use core::{fmt, ptr};
 use alloc::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Tail {
+pub enum RawTail {
     Input(RawInput),
     Hidden(RawHidden),
 }
 
-impl Tail {
+pub enum Tail<'a> {
+    Input(&'a Input),
+    Hidden(&'a Hidden),
+}
+
+impl Tail<'_> {
     pub fn input(&self) -> Option<&Input> {
         match self {
-            Self::Input(input) => Some(input.as_ref()),
+            Self::Input(input) => Some(input),
             Self::Hidden(_) => None,
         }
     }
@@ -20,37 +25,37 @@ impl Tail {
     pub fn hidden(&self) -> Option<&Hidden> {
         match self {
             Self::Input(_) => None,
-            Self::Hidden(hidden) => Some(hidden.as_ref()),
+            Self::Hidden(hidden) => Some(hidden),
         }
     }
 
     pub fn innov(&self) -> usize {
         match self {
-            Self::Input(input) => input.as_ref().innov(),
-            Self::Hidden(hidden) => hidden.as_ref().innov(),
+            Self::Input(input) => input.innov(),
+            Self::Hidden(hidden) => hidden.innov(),
         }
     }
 }
 
-impl Node for Tail {
+impl Node for Tail<'_> {
     fn layer(&self) -> usize {
         match self {
-            Self::Input(input) => input.as_ref().layer(),
-            Self::Hidden(hidden) => hidden.as_ref().layer(),
+            Self::Input(input) => input.layer(),
+            Self::Hidden(hidden) => hidden.layer(),
         }
     }
 
     fn bias(&self) -> f32 {
         match self {
-            Self::Input(input) => input.as_ref().bias(),
-            Self::Hidden(hidden) => hidden.as_ref().bias(),
+            Self::Input(input) => input.bias(),
+            Self::Hidden(hidden) => hidden.bias(),
         }
     }
 
     fn innov(&self) -> usize {
         match self {
-            Self::Input(input) => input.as_ref().innov(),
-            Self::Hidden(hidden) => hidden.as_ref().innov(),
+            Self::Input(input) => input.innov(),
+            Self::Hidden(hidden) => hidden.innov(),
         }
     }
 
@@ -63,7 +68,7 @@ impl Node for Tail {
     fn aggregator(&self) -> fn(&[f32]) -> f32 { todo!(); }
 }
 
-impl fmt::Pointer for Tail {
+impl fmt::Pointer for Tail<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Input(input) => fmt::Pointer::fmt(&input, f),
@@ -72,9 +77,15 @@ impl fmt::Pointer for Tail {
     }
 }
 
-impl From<&Hidden> for Tail {
+impl From<&Hidden> for Tail<'_> {
     fn from(value: &Hidden) -> Self {
         Self::Hidden(value.into())
+    }
+}
+
+impl From<RawHidden> for Tail {
+    fn from(value: RawHidden) -> Self {
+        Self::Hidden(value)
     }
 }
 

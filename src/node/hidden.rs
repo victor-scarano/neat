@@ -62,6 +62,7 @@ impl PartialEq for Hidden {
     }
 }
 
+#[derive(Debug)]
 pub struct Hiddens {
     bump: Bump,
 }
@@ -71,8 +72,11 @@ impl Hiddens {
         Self { bump: Bump::new() }
     }
 
-    pub fn from_edge(&self, edge: &Edge) -> RawHidden {
-        RawHidden(self.bump.alloc(Hidden::from_edge(edge)))
+    pub fn split_edge(&self, edge: &Edge) -> (Edge, Edge) {
+        let middle = RawHidden(self.bump.alloc(Hidden::from_edge(edge)));
+        let first = Edge::new(edge.tail, middle);
+        let last = Edge::new(middle, self.head);
+        (first, last)
     }
 }
 
