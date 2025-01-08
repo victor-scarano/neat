@@ -1,6 +1,6 @@
 extern crate alloc;
 use crate::{edge::Edge, pop::Pop, node::*, node::Accum};
-use core::{cell::Cell, cmp, hash::{Hash, Hasher}};
+use core::{cell::Cell, cmp, fmt, hash::{Hash, Hasher}};
 use alloc::rc::Rc;
 use bumpalo::Bump;
 use hashbrown::HashMap;
@@ -17,8 +17,8 @@ pub struct Hidden {
 
 impl Hidden {
     pub fn from_edge(edge: &Edge) -> Self {
-        let curr_level = edge.tail.layer();
-        edge.head.update_layer(curr_level + 1);
+        let curr_level = edge.tail().layer();
+        edge.head().update_layer(curr_level + 1);
 
         Self {
             layer: Cell::new(curr_level),
@@ -30,7 +30,7 @@ impl Hidden {
         }
     }
 
-    pub fn eval(&self, weight: f32, map: &mut HashMap<Head, Accum>) -> f32 {
+    pub fn eval<'a>(&'a self, weight: f32, map: &mut HashMap<Head<'a>, Accum>) -> f32 {
         let input = map.get_mut(&Head::from(self)).unwrap().eval(self.aggregator);
         weight * self.activate(self.bias() + (self.response() * input))
     }
@@ -74,8 +74,8 @@ impl Hiddens {
 
     pub fn split_edge(&self, edge: &Edge) -> (Edge, Edge) {
         let middle = RawHidden(self.bump.alloc(Hidden::from_edge(edge)));
-        let first = Edge::new(edge.tail, middle);
-        let last = Edge::new(middle, self.head);
+        let first = Edge::new(edge.tail(), unsafe { middle.upgrade() });
+        let last = Edge::new(unsafe { middle.upgrade() }, edge.head());
         (first, last)
     }
 }
@@ -84,8 +84,8 @@ impl Hiddens {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct RawHidden(*const Hidden);
 
-impl AsRef<Hidden> for RawHidden {
-    fn as_ref(&self) -> &Hidden {
+impl RawHidden {
+    pub unsafe fn upgrade<'a>(&self) -> &'a Hidden {
         unsafe { &*self.0 }
     }
 }
@@ -98,7 +98,14 @@ impl From<&Hidden> for RawHidden {
 
 impl Hash for RawHidden {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().hash(state);
+        let inner = unsafe { self.upgrade() };
+        inner.hash(state);
+    }
+}
+
+impl fmt::Pointer for RawHidden {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Pointer::fmt(&self.0, f)
     }
 }
 

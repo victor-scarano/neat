@@ -47,7 +47,7 @@ pub struct Inputs<const I: usize>(Box<[Input; I]>);
 
 impl<const I: usize> Inputs<I> {
     pub fn new() -> Self {
-        Self(Box::new(array::from_fn::<_, I, _>(|innov| Input::new(innov))))
+        Self(Box::new(array::from_fn::<_, I, _>(Input::new)))
     }
 
     pub fn get(&self, index: usize) -> Option<&Input> {
@@ -79,9 +79,21 @@ impl<const I: usize> TryFrom<Vec<Input>> for Inputs<I> {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct RawInput(*const Input);
 
-impl AsRef<Input> for RawInput {
-    fn as_ref(&self) -> &Input {
+impl RawInput {
+    pub unsafe fn upgrade<'a>(&self) -> &'a Input {
         unsafe { &*self.0 }
+    }
+}
+
+impl From<&Input> for RawInput {
+    fn from(value: &Input) -> Self {
+        Self(value)
+    }
+}
+
+impl fmt::Pointer for RawInput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Pointer::fmt(&self.0, f)
     }
 }
 

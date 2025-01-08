@@ -3,12 +3,31 @@ use crate::node::*;
 use core::{fmt, ptr};
 use alloc::rc::Rc;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum RawTail {
     Input(RawInput),
     Hidden(RawHidden),
 }
 
+impl From<Tail<'_>> for RawTail {
+    fn from(tail: Tail) -> Self {
+        match tail {
+            Tail::Input(input) => RawTail::Input(input.into()),
+            Tail::Hidden(hidden) => RawTail::Hidden(hidden.into()),
+        }
+    }
+}
+
+impl fmt::Pointer for RawTail {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Input(input) => fmt::Pointer::fmt(input, f),
+            Self::Hidden(hidden) => fmt::Pointer::fmt(hidden, f),
+        }
+    }
+}
+
+#[derive(Eq, Clone, Debug, Hash, PartialEq)]
 pub enum Tail<'a> {
     Input(&'a Input),
     Hidden(&'a Hidden),
@@ -77,31 +96,34 @@ impl fmt::Pointer for Tail<'_> {
     }
 }
 
-impl From<&Hidden> for Tail<'_> {
-    fn from(value: &Hidden) -> Self {
-        Self::Hidden(value.into())
-    }
-}
-
-impl From<RawHidden> for Tail {
-    fn from(value: RawHidden) -> Self {
+impl<'a> From<&'a Hidden> for Tail<'a> {
+    fn from(value: &'a Hidden) -> Self {
         Self::Hidden(value)
     }
 }
 
-impl PartialEq<Input> for Tail {
+impl From<RawTail> for Tail<'_> {
+    fn from(value: RawTail) -> Self {
+        match value {
+            RawTail::Input(input) => Self::Input(unsafe { input.upgrade() }),
+            RawTail::Hidden(hidden) => Self::Hidden(unsafe { hidden.upgrade() }),
+        }
+    }
+}
+
+impl PartialEq<Input> for Tail<'_> {
     fn eq(&self, rhs: &Input) -> bool {
         self.input().map(|lhs| lhs == rhs).is_some()
     }
 }
 
-impl PartialEq<Hidden> for Tail {
+impl PartialEq<Hidden> for Tail<'_> {
     fn eq(&self, rhs: &Hidden) -> bool {
         self.hidden().map(|lhs| lhs == rhs).is_some()
     }
 }
 
-impl PartialEq<Head> for Tail {
+impl PartialEq<Head<'_>> for Tail<'_> {
     fn eq(&self, other: &Head) -> bool {
         // are we supposed to check for ptr equality or value equality?
         self.hidden().and_then(|lhs| other.hidden().map(|rhs| ptr::eq(&lhs, &rhs))).is_some()

@@ -31,8 +31,8 @@ impl Output {
         self.innov - I
     }
 
-    pub fn eval(&self, map: &mut HashMap<Head, Accum>) -> f32 {
-        let input = map.get_mut(&Head::from(self.clone())).unwrap().eval(self.aggregator);
+    pub fn eval<'a>(&'a self, map: &mut HashMap<Head<'a>, Accum>) -> f32 {
+        let input = map.get_mut(&Head::from(self)).unwrap().eval(self.aggregator);
         self.activate(self.bias() + (self.response() * input))
     }
 }
@@ -62,14 +62,14 @@ pub struct Outputs<const O: usize>(Box<[Output; O]>);
 
 impl<const O: usize> Outputs<O> {
     pub fn new<const I: usize>() -> Self {
-        Self(Box::new(array::from_fn::<_, O, _>(|innov| Output::new::<I>(innov))))
+        Self(Box::new(array::from_fn::<_, O, _>(Output::new::<I>)))
     }
 
     pub fn get(&self, index: usize) -> Option<&Output> {
         self.0.get(index)
     }
 
-    pub fn eval_nth(&self, n: usize, map: &mut HashMap<Head, Accum>) -> f32 {
+    pub fn eval_nth<'a>(&'a self, n: usize, map: &mut HashMap<Head<'a>, Accum>) -> f32 {
         self.get(n).unwrap().eval(map)
     }
 
@@ -97,8 +97,8 @@ impl<const O: usize> TryFrom<Vec<Output>> for Outputs<O> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RawOutput(*const Output);
 
-impl AsRef<Output> for RawOutput {
-    fn as_ref(&self) -> &Output {
+impl RawOutput {
+    pub unsafe fn upgrade<'a>(&self) -> &'a Output {
         unsafe { &*self.0 }
     }
 }
@@ -111,6 +111,14 @@ impl From<&Output> for RawOutput {
 
 impl Hash for RawOutput {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().hash(state);
+        let inner = unsafe { self.upgrade() };
+        inner.hash(state);
     }
 }
+
+impl fmt::Pointer for RawOutput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Pointer::fmt(&self.0, f)
+    }
+}
+

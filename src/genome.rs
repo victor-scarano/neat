@@ -30,10 +30,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     }
 
     pub fn mutate_add_edge(&mut self, rng: &mut impl Rng) {
-        let (first, second) = self.edges.random_edges(rng);
-        // TODO: allow for any non-equal node combo from the random edges to be used
-        let edge = Edge::new(first.tail.clone(), second.head.clone());
-        self.edges.insert(edge);
+        todo!();
     }
 
     pub fn mutate_split_edge(&mut self, rng: &mut impl Rng) {
@@ -58,12 +55,12 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         let mut map = HashMap::new();
 
         for edge in self.edges.iter_ordered().take_while(|edge| edge.enabled.get()) {
-            let eval = match edge.tail {
-                Tail::Input(ref input) => input.eval(edge.weight, inputs),
-                Tail::Hidden(ref hidden) => hidden.eval(edge.weight, &mut map),
+            let eval = match edge.tail() {
+                Tail::Input(input) => input.eval(edge.weight, inputs),
+                Tail::Hidden(hidden) => hidden.eval(edge.weight, &mut map),
             };
 
-            map.entry(edge.head.clone()).or_insert(Accum::new()).push(eval);
+            map.entry(edge.head()).or_insert(Accum::new()).push(eval);
         }
 
         array::from_fn::<_, O, _>(|idx| self.outputs.eval_nth(idx, &mut map))

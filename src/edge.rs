@@ -9,8 +9,8 @@ use rand::{seq::IteratorRandom, Rng};
 
 #[derive(Clone)]
 pub struct Edge {
-    pub tail: Tail,
-    pub head: Head,
+    tail: RawTail,
+    head: RawHead,
     pub weight: f32,
     pub enabled: Cell<bool>,
     pub layer: usize,
@@ -30,9 +30,17 @@ impl Edge {
             layer: tail.layer(),
             enabled: Cell::new(true),
             weight: 1.0,
-            tail,
-            head,
+            tail: tail.into(),
+            head: head.into(),
         }
+    }
+
+    pub fn tail(&self) -> Tail {
+        self.tail.into()
+    }
+
+    pub fn head(&self) -> Head {
+        self.head.into()
     }
 }
 
@@ -83,27 +91,32 @@ impl PartialOrd for Edge {
 #[derive(Copy, Clone, Eq)]
 struct RawEdge(*const Edge);
 
-impl AsRef<Edge> for RawEdge {
-    fn as_ref(&self) -> &Edge {
+impl RawEdge {
+    pub unsafe fn upgrade<'a>(&self) -> &'a Edge {
         unsafe { &*self.0 }
     }
 }
 
 impl Hash for RawEdge {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().hash(state);
+        let inner = unsafe { self.upgrade() };
+        inner.hash(state);
     }
 }
 
 impl Ord for RawEdge {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.as_ref().cmp(other.as_ref())
+        let lhs = unsafe { self.upgrade() };
+        let rhs = unsafe { other.upgrade() };
+        lhs.cmp(rhs)
     }
 }
 
 impl PartialEq for RawEdge {
     fn eq(&self, other: &Self) -> bool {
-        self.as_ref().eq(other.as_ref())
+        let lhs = unsafe { self.upgrade() };
+        let rhs = unsafe { other.upgrade() };
+        lhs.eq(rhs)
     }
 }
 
@@ -130,7 +143,7 @@ impl Edges {
 
     pub fn get(&self, edge: &Edge) -> Option<&Edge> {
         let edge = RawEdge(edge as *const _);
-        self.hash.get(&edge).map(RawEdge::as_ref)
+        self.hash.get(&edge).map(|edge| unsafe { edge.upgrade() })
     }
 
     pub fn insert(&mut self, edge: Edge) {
@@ -139,29 +152,12 @@ impl Edges {
         assert!(self.hash.insert(edge));
     }
 
-    pub fn random_edges(&self, rng: &mut impl Rng) -> (&Edge, &Edge) {
-        // returns two random nonequal edges
-        assert!(self.len() >= 1);
-
-        let mut edges = loop {
-            let edges = self.iter_ordered().choose_multiple(rng, 2);
-
-            if edges[0] != edges[1] {
-                break edges;
-            }
-        };
-
-        edges.sort_unstable();
-
-        (edges[0], edges[1])
-    }
-
     pub fn iter_ordered(&self) -> impl Iterator<Item = &Edge> {
-        self.btree.iter().map(RawEdge::as_ref)
+        self.btree.iter().map(|edge| unsafe { edge.upgrade() })
     }
 
     pub fn iter_unordered(&self) -> impl Iterator<Item = &Edge> {
-        self.hash.iter().map(RawEdge::as_ref)
+        self.hash.iter().map(|edge| unsafe { edge.upgrade() })
     }
 
     pub fn len(&self) -> usize {
