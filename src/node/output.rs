@@ -1,7 +1,7 @@
 extern crate alloc;
 use crate::{pop::Pop, node::*, node::Accum};
 use core::{array, cell::Cell, cmp, fmt, hash::{Hash, Hasher}, slice};
-use alloc::rc::Rc;
+use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use hashbrown::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]

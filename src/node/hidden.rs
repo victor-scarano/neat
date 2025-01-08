@@ -1,8 +1,8 @@
 extern crate alloc;
 use crate::{edge::Edge, pop::Pop, node::*, node::Accum};
-use core::{cell::Cell, cmp, fmt, hash::{Hash, Hasher}};
-use alloc::rc::Rc;
-use bumpalo::Bump;
+use core::{cell::Cell, cmp, fmt, hash::{Hash, Hasher}, mem::{self, MaybeUninit}, ptr::NonNull, slice};
+use alloc::{rc::Rc, vec::Vec};
+use bumpalo::{Bump, ChunkIter};
 use hashbrown::HashMap;
 
 #[derive(Clone, Debug)]
@@ -63,20 +63,72 @@ impl PartialEq for Hidden {
 }
 
 #[derive(Debug)]
-pub struct Hiddens {
+pub struct Hiddens<const N: usize = 32> {
     bump: Bump,
+    len: usize,
 }
 
-impl Hiddens {
+impl<const N: usize> Hiddens<N> {
     pub fn new() -> Self {
-        Self { bump: Bump::new() }
+        let bump = Bump::new();
+        bump.set_allocation_limit(Some(N * size_of::<Hidden>()));
+        Self { bump, len: 0 }
     }
 
-    pub fn split_edge(&self, edge: &Edge) -> (Edge, Edge) {
-        let middle = RawHidden(self.bump.alloc(Hidden::from_edge(edge)));
+    fn insert(&mut self, edge: &Edge) -> RawHidden {
+        let new = self.bump.alloc(Hidden::from_edge(edge));
+        self.len += 1;
+        RawHidden(new)
+    }
+
+    pub fn split_edge(&mut self, edge: &Edge) -> (Edge, Edge) {
+        let middle = self.insert(edge);
         let first = Edge::new(edge.tail(), unsafe { middle.upgrade() });
         let last = Edge::new(unsafe { middle.upgrade() }, edge.head());
         (first, last)
+    }
+
+    pub fn iter(&mut self) -> Iter<'_, N> {
+        Iter::new(&mut self.bump, self.len)
+    }
+
+    pub fn len(&self) -> usize {
+        self.bump.allocated_bytes() / size_of::<Hidden>()
+    }
+}
+
+pub struct Iter<'a, const N: usize> {
+    chunks: ChunkIter<'a>,
+    curr: slice::Iter<'a, Hidden>,
+}
+
+impl<'a, const N: usize> Iter<'a, N> {
+    fn new(bump: &'a mut Bump, len: usize) -> Self {
+        let mut chunks = bump.iter_allocated_chunks();
+
+        let curr = match chunks.next() {
+            Some(chunk) => {
+                let ptr = MaybeUninit::slice_as_ptr(chunk) as *const Hidden;
+                let slice = unsafe { slice::from_raw_parts(ptr, len) };
+                slice.iter()
+            },
+            None => slice::Iter::default(),
+        };
+
+        Self { chunks, curr }
+    }
+}
+
+impl<'a, const N: usize> Iterator for Iter<'a, N> {
+    type Item = &'a Hidden;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.curr.next().or(self.chunks.next().and_then(|chunk| {
+            let ptr = MaybeUninit::slice_as_ptr(chunk) as *const Hidden;
+            let slice = unsafe { slice::from_raw_parts(ptr, N) };
+            self.curr = slice.iter();
+            self.curr.next()
+        }))
     }
 }
 

@@ -96,6 +96,12 @@ impl fmt::Pointer for Tail<'_> {
     }
 }
 
+impl<'a> From<&'a Input> for Tail<'a> {
+    fn from(value: &'a Input) -> Self {
+        Self::Input(value)
+    }
+}
+
 impl<'a> From<&'a Hidden> for Tail<'a> {
     fn from(value: &'a Hidden) -> Self {
         Self::Hidden(value)

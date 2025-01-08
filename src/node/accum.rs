@@ -1,3 +1,6 @@
+extern crate alloc;
+use alloc::vec::Vec;
+
 pub enum Accum {
     Elems(Vec<f32>),
     Eval(f32),

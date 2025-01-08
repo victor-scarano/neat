@@ -29,8 +29,16 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         }
     }
 
-    pub fn mutate_add_edge(&mut self, rng: &mut impl Rng) {
-        todo!();
+    // original signature: pub fn mutate_add_edge(&mut self, rng: &mut impl Rng)
+    pub fn mutate_add_edge(&mut self, tail: usize, head: usize) {
+        // choose two random nodes that are not equal
+        // insert an edge that connects both nodes
+
+        // the following implementation is for debug purposes:
+        let tail = self.inputs.get(tail).unwrap();
+        let head = self.outputs.get(head).unwrap();
+        let edge = Edge::new(tail, head);
+        self.edges.insert(edge);
     }
 
     pub fn mutate_split_edge(&mut self, rng: &mut impl Rng) {

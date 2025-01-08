@@ -1,7 +1,6 @@
 extern crate alloc;
 use crate::{genome::Genome, node::*, pop::Pop};
 use core::{cell::Cell, cmp::Ordering, convert::Into, fmt, hash, iter, mem};
-use std::hash::{Hash, Hasher};
 use alloc::{collections::BTreeSet, rc::*};
 use bumpalo::Bump;
 use hashbrown::HashSet;
@@ -97,8 +96,8 @@ impl RawEdge {
     }
 }
 
-impl Hash for RawEdge {
-    fn hash<H: Hasher>(&self, state: &mut H) {
+impl hash::Hash for RawEdge {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
         let inner = unsafe { self.upgrade() };
         inner.hash(state);
     }
@@ -148,8 +147,8 @@ impl Edges {
 
     pub fn insert(&mut self, edge: Edge) {
         let edge = RawEdge(self.bump.alloc(edge));
-        assert!(self.btree.insert(edge));
-        assert!(self.hash.insert(edge));
+        assert!(self.btree.insert(edge), "edge has already been inserted");
+        assert!(self.hash.insert(edge), "edge has already been inserted");
     }
 
     pub fn iter_ordered(&self) -> impl Iterator<Item = &Edge> {
