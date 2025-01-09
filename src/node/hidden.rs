@@ -91,10 +91,6 @@ impl<const N: usize> Hiddens<N> {
     pub fn iter(&mut self) -> Iter<'_, N> {
         Iter::new(&mut self.bump, self.len)
     }
-
-    pub fn len(&self) -> usize {
-        self.bump.allocated_bytes() / size_of::<Hidden>()
-    }
 }
 
 pub struct Iter<'a, const N: usize> {
@@ -124,8 +120,7 @@ impl<'a, const N: usize> Iterator for Iter<'a, N> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.curr.next().or(self.chunks.next().and_then(|chunk| {
-            let ptr = MaybeUninit::slice_as_ptr(chunk) as *const Hidden;
-            let slice = unsafe { slice::from_raw_parts(ptr, N) };
+            let slice: &[Hidden] = unsafe { mem::transmute(chunk) };
             self.curr = slice.iter();
             self.curr.next()
         }))

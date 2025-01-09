@@ -18,8 +18,8 @@ pub struct Edge {
 
 impl Edge {
     pub fn new(tail: impl Into<Tail>, head: impl Into<Head>) -> Self {
-        let tail = tail.into();
-        let head = head.into();
+        let tail: Tail = tail.into();
+        let head: Head = head.into();
         assert_ne!(tail, head);
 
         head.update_layer(tail.layer() + 1);
@@ -65,11 +65,9 @@ impl hash::Hash for Edge {
     }
 }
 
+// what exactly should be the ord implementation?
 impl Ord for Edge {
     fn cmp(&self, other: &Self) -> Ordering {
-        // self.enabled.get()
-        //    .cmp(&other.enabled.get())
-        //    .reverse()
         self.layer.cmp(&other.layer).then(self.innov.cmp(&other.innov))
     }
 }
@@ -151,17 +149,17 @@ impl Edges {
         assert!(self.hash.insert(edge), "edge has already been inserted");
     }
 
-    pub fn iter_ordered(&self) -> impl Iterator<Item = &Edge> {
+    pub fn iter(&self) -> impl Iterator<Item = &Edge> {
         self.btree.iter().map(|edge| unsafe { edge.upgrade() })
     }
 
-    pub fn iter_unordered(&self) -> impl Iterator<Item = &Edge> {
-        self.hash.iter().map(|edge| unsafe { edge.upgrade() })
-    }
-
     pub fn len(&self) -> usize {
-        assert_eq!(self.btree.len(), self.hash.len());
-        self.hash.len() // is one len method faster than the other?
+        debug_assert_eq!(
+            self.btree.len(),
+            self.hash.len(),
+            "the hashset and btreeset used in managing a genome's edges should always be the same"
+        );
+        self.hash.len()
     }
 }
 
@@ -175,7 +173,7 @@ impl iter::Extend<RawEdge> for Edges {
 
 impl fmt::Debug for Edges {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.iter_ordered()).finish()
+        f.debug_list().entries(self.iter()).finish()
     }
 }
 

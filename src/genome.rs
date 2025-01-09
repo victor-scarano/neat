@@ -43,7 +43,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
 
     pub fn mutate_split_edge(&mut self, rng: &mut impl Rng) {
         let edge = self.edges
-            .iter_ordered()
+            .iter()
             .filter(|edge| edge.enabled.get())
             .choose_stable(rng)
             .unwrap();
@@ -62,7 +62,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn activate(&self, inputs: [f32; I]) -> [f32; O] {
         let mut map = HashMap::new();
 
-        for edge in self.edges.iter_ordered().take_while(|edge| edge.enabled.get()) {
+        for edge in self.edges.iter().take_while(|edge| edge.enabled.get()) {
             let eval = match edge.tail() {
                 Tail::Input(input) => input.eval(edge.weight, inputs),
                 Tail::Hidden(hidden) => hidden.eval(edge.weight, &mut map),
