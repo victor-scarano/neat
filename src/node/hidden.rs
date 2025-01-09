@@ -1,18 +1,26 @@
 extern crate alloc;
 use crate::{edge::Edge, pop::Pop, node::*, node::Accum};
-use core::{cell::Cell, cmp, fmt, hash::{Hash, Hasher}, mem::{self, MaybeUninit}, ptr::NonNull, slice};
+use core::{
+    cell::{Cell, RefCell},
+    cmp,
+    fmt,
+    hash::{Hash, Hasher},
+    mem::{self, MaybeUninit},
+    ptr::NonNull,
+    slice
+};
 use alloc::{rc::Rc, vec::Vec};
 use bumpalo::{Bump, ChunkIter};
 use hashbrown::HashMap;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Hidden {
-    layer: Cell<usize>,
-    activation: Cell<fn(f32) -> f32>,
-    aggregator: fn(&[f32]) -> f32,
-    response: f32,
-    bias: f32,
     innov: usize,
+    layer: Cell<usize>,
+    bias: f32,
+    resp: f32,
+    activ: Cell<fn(f32) -> f32>,
+    aggreg: fn(&[f32]) -> f32,
 }
 
 impl Hidden {
@@ -22,35 +30,49 @@ impl Hidden {
 
         Self {
             layer: Cell::new(curr_level),
-            activation: Cell::new(|x| x),
-            aggregator: |values| values.iter().sum::<f32>() / (values.len() as f32),
-            response: 1.0,
+            activ: Cell::new(|x| x),
+            aggreg: |values| values.iter().sum::<f32>() / (values.len() as f32),
+            resp: 1.0,
             bias: 0.0,
             innov: Pop::next_node_innov(),
         }
     }
 
     pub fn eval<'a>(&'a self, weight: f32, map: &mut HashMap<Head<'a>, Accum>) -> f32 {
-        let input = map.get_mut(&Head::from(self)).unwrap().eval(self.aggregator);
+        let input = map.get_mut(&Head::from(self)).unwrap().eval(self.aggreg);
         weight * self.activate(self.bias() + (self.response() * input))
     }
 }
+
+impl fmt::Debug for Hidden {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f
+            .debug_struct("Hidden")
+            .field("innov", &self.innov)
+            .field("layer", &self.layer.get())
+            .field("bias", &self.bias)
+            // .field("resp", &self.resp)
+            // .field("activ", &self.activ.get())
+            // .field("aggreg", &self.aggreg)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Eq for Hidden {}
 
 impl Node for Hidden {
     fn layer(&self) -> usize { self.layer.get() }
     fn bias(&self) -> f32 { self.bias }
     fn innov(&self) -> usize { self.innov }
     fn update_layer(&self, layer: usize) { self.layer.update(|current| cmp::max(current, layer)); }
-    fn activate(&self, x: f32) -> f32 { self.activation.get()(x) }
-    fn response(&self) -> f32 { self.response }
-    fn aggregator(&self) -> fn(&[f32]) -> f32 { self.aggregator }
+    fn activate(&self, x: f32) -> f32 { self.activ.get()(x) }
+    fn response(&self) -> f32 { self.resp }
+    fn aggregator(&self) -> fn(&[f32]) -> f32 { self.aggreg }
 }
-
-impl Eq for Hidden {}
 
 impl Hash for Hidden {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.response.to_ne_bytes().hash(state);
+        self.resp.to_ne_bytes().hash(state);
         self.bias.to_ne_bytes().hash(state);
         self.innov.hash(state);
     }
@@ -58,25 +80,24 @@ impl Hash for Hidden {
 
 impl PartialEq for Hidden {
     fn eq(&self, other: &Self) -> bool {
-        self.response == other.response && self.bias == other.bias && self.innov == other.innov
+        self.resp == other.resp && self.bias == other.bias && self.innov == other.innov
     }
 }
 
-#[derive(Debug)]
-pub struct Hiddens<const N: usize = 32> {
-    bump: Bump,
+pub struct Hiddens {
+    bump: RefCell<Bump>,
     len: usize,
 }
 
-impl<const N: usize> Hiddens<N> {
+impl Hiddens {
     pub fn new() -> Self {
         let bump = Bump::new();
-        bump.set_allocation_limit(Some(N * size_of::<Hidden>()));
-        Self { bump, len: 0 }
+        // is it necessary to set the allocation limit here?
+        Self { bump: RefCell::new(bump), len: 0 }
     }
 
     fn insert(&mut self, edge: &Edge) -> RawHidden {
-        let new = self.bump.alloc(Hidden::from_edge(edge));
+        let new = self.bump.borrow().alloc(Hidden::from_edge(edge)) as *const _;
         self.len += 1;
         RawHidden(new)
     }
@@ -88,42 +109,51 @@ impl<const N: usize> Hiddens<N> {
         (first, last)
     }
 
-    pub fn iter(&mut self) -> Iter<'_, N> {
-        Iter::new(&mut self.bump, self.len)
-    }
-}
-
-pub struct Iter<'a, const N: usize> {
-    chunks: ChunkIter<'a>,
-    curr: slice::Iter<'a, Hidden>,
-}
-
-impl<'a, const N: usize> Iter<'a, N> {
-    fn new(bump: &'a mut Bump, len: usize) -> Self {
+    pub fn iter(&self) -> Iter<'_> {
+        let mut bump = self.bump.borrow_mut();
         let mut chunks = bump.iter_allocated_chunks();
+        let mut hiddens = Vec::new();
 
-        let curr = match chunks.next() {
-            Some(chunk) => {
-                let ptr = MaybeUninit::slice_as_ptr(chunk) as *const Hidden;
-                let slice = unsafe { slice::from_raw_parts(ptr, len) };
-                slice.iter()
-            },
-            None => slice::Iter::default(),
-        };
+        if let Some(chunk) = chunks.next() {
+            let ptr = MaybeUninit::slice_as_ptr(chunk) as *const Hidden;
+            let slice = unsafe { slice::from_raw_parts(ptr, self.len) };
+            hiddens.extend(slice);
+        }
 
-        Self { chunks, curr }
+        for chunk in chunks {
+            let slice: &[Hidden] = unsafe { mem::transmute(chunk) };
+            hiddens.extend(slice);
+        }
+
+        Iter(hiddens)
     }
 }
 
-impl<'a, const N: usize> Iterator for Iter<'a, N> {
+impl fmt::Debug for Hiddens {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // note that this debug impl does not reflect the fact that this struct
+        // internally manages a bump allocator or a length.
+        f.debug_list().entries(self.iter()).finish()
+    }
+}
+
+pub struct Iter<'a>(Vec<&'a Hidden>);
+
+impl<'a> Iterator for Iter<'a> {
     type Item = &'a Hidden;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.curr.next().or(self.chunks.next().and_then(|chunk| {
-            let slice: &[Hidden] = unsafe { mem::transmute(chunk) };
-            self.curr = slice.iter();
-            self.curr.next()
-        }))
+        self.0.pop()
+    }
+}
+
+impl fmt::Debug for Iter<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // TODO: check if Vec::as_slice makes any difference in debug output.
+        // the goal is for the debug output to match slice::Iter's debug output,
+        // not only to be consistent with the std lib, but also to be consistent
+        // with the other debug outputs of the other node collections.
+        f.debug_tuple("Iter").field(&self.0.as_slice()).finish()
     }
 }
 

@@ -20,6 +20,13 @@ impl Edge {
     pub fn new(tail: impl Into<Tail>, head: impl Into<Head>) -> Self {
         let tail: Tail = tail.into();
         let head: Head = head.into();
+
+        // this assert ensures that we arent creating an edge from two of the
+        // same node. however, this assertion is incorrectly failing when
+        // comparing two different nodes, leading me to believe that the bug is
+        // rooted in their partialeq impls... although, it could also have
+        // something to do with the conversion between raw and "cooked" nodes
+        // within the impls.
         assert_ne!(tail, head);
 
         head.update_layer(tail.layer() + 1);

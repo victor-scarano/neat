@@ -1,6 +1,6 @@
 extern crate alloc;
 use crate::node::*;
-use core::fmt;
+use core::{fmt, ptr};
 use alloc::rc::Rc;
 
 #[derive(Copy, Clone)]
@@ -135,6 +135,13 @@ impl<'a> From<&'a Hidden> for Head<'a> {
 impl<'a> From<&'a Output> for Head<'a> {
     fn from(value: &'a Output) -> Self {
         Self::Output(value)
+    }
+}
+
+impl PartialEq<Tail<'_>> for Head<'_> {
+    fn eq(&self, other: &Tail) -> bool {
+        // are we supposed to check for ptr equality or value equality?
+        self.hidden().and_then(|lhs| other.hidden().map(|rhs| ptr::eq(lhs, rhs))).is_some()
     }
 }
 

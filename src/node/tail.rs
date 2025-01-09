@@ -132,7 +132,7 @@ impl PartialEq<Hidden> for Tail<'_> {
 impl PartialEq<Head<'_>> for Tail<'_> {
     fn eq(&self, other: &Head) -> bool {
         // are we supposed to check for ptr equality or value equality?
-        self.hidden().and_then(|lhs| other.hidden().map(|rhs| ptr::eq(&lhs, &rhs))).is_some()
+        self.hidden().and_then(|lhs| other.hidden().map(|rhs| ptr::eq(lhs, rhs))).is_some()
     }
 }
 
