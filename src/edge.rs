@@ -1,6 +1,6 @@
 extern crate alloc;
 use crate::{genome::Genome, node::*, pop::Pop};
-use core::{cell::Cell, cmp::Ordering, convert::Into, fmt, hash, iter, mem};
+use core::{cell::Cell, cmp::Ordering, convert::Into, fmt, hash, iter, mem, ptr::NonNull};
 use alloc::{collections::BTreeSet, rc::*};
 use bumpalo::Bump;
 use hashbrown::HashSet;
@@ -36,17 +36,17 @@ impl Edge {
             layer: tail.layer(),
             enabled: Cell::new(true),
             weight: 1.0,
-            tail: tail.into(),
-            head: head.into(),
+            tail: tail.downgrade(),
+            head: head.downgrade(),
         }
     }
 
     pub fn tail(&self) -> Tail {
-        self.tail.into()
+        self.tail.upgrade()
     }
 
     pub fn head(&self) -> Head {
-        self.head.into()
+        self.head.upgrade()
     }
 }
 
@@ -93,34 +93,41 @@ impl PartialOrd for Edge {
 }
 
 #[derive(Copy, Clone, Eq)]
-struct RawEdge(*const Edge);
+struct RawEdge(NonNull<Edge>);
 
 impl RawEdge {
-    pub unsafe fn upgrade<'a>(&self) -> &'a Edge {
-        unsafe { &*self.0 }
+    pub fn upgrade<'a>(&self) -> &'a Edge {
+        unsafe { self.0.as_ref() }
+    }
+}
+
+impl From<&Edge> for RawEdge {
+    fn from(value: &Edge) -> Self {
+        Self(NonNull::from_ref(value))
+    }
+}
+
+impl From<&mut Edge> for RawEdge {
+    fn from(value: &mut Edge) -> Self {
+        Self(NonNull::from_mut(value))
     }
 }
 
 impl hash::Hash for RawEdge {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        let inner = unsafe { self.upgrade() };
-        inner.hash(state);
+        self.upgrade().hash(state);
     }
 }
 
 impl Ord for RawEdge {
     fn cmp(&self, other: &Self) -> Ordering {
-        let lhs = unsafe { self.upgrade() };
-        let rhs = unsafe { other.upgrade() };
-        lhs.cmp(rhs)
+        self.upgrade().cmp(other.upgrade())
     }
 }
 
 impl PartialEq for RawEdge {
     fn eq(&self, other: &Self) -> bool {
-        let lhs = unsafe { self.upgrade() };
-        let rhs = unsafe { other.upgrade() };
-        lhs.eq(rhs)
+        self.upgrade().eq(other.upgrade())
     }
 }
 
@@ -146,18 +153,18 @@ impl Edges {
     }
 
     pub fn get(&self, edge: &Edge) -> Option<&Edge> {
-        let edge = RawEdge(edge as *const _);
-        self.hash.get(&edge).map(|edge| unsafe { edge.upgrade() })
+        let edge = RawEdge::from(edge);
+        self.hash.get(&edge).map(RawEdge::upgrade)
     }
 
     pub fn insert(&mut self, edge: Edge) {
-        let edge = RawEdge(self.bump.alloc(edge));
+        let edge = RawEdge::from(self.bump.alloc(edge));
         assert!(self.btree.insert(edge), "edge has already been inserted");
         assert!(self.hash.insert(edge), "edge has already been inserted");
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Edge> {
-        self.btree.iter().map(|edge| unsafe { edge.upgrade() })
+        self.btree.iter().map(RawEdge::upgrade)
     }
 
     pub fn len(&self) -> usize {

@@ -9,6 +9,7 @@ use core::{
     ptr::NonNull,
     slice
 };
+use std::ptr;
 use alloc::{rc::Rc, vec::Vec};
 use bumpalo::{Bump, ChunkIter};
 use hashbrown::HashMap;
@@ -24,6 +25,10 @@ pub struct Hidden {
 }
 
 impl Hidden {
+    pub fn downgrade(&self) -> RawHidden {
+        RawHidden::from(self)
+    }
+
     pub fn from_edge(edge: &Edge) -> Self {
         let curr_level = edge.tail().layer();
         edge.head().update_layer(curr_level + 1);
@@ -97,15 +102,15 @@ impl Hiddens {
     }
 
     fn insert(&mut self, edge: &Edge) -> RawHidden {
-        let new = self.bump.borrow().alloc(Hidden::from_edge(edge)) as *const _;
         self.len += 1;
-        RawHidden(new)
+        let bump = self.bump.borrow();
+        RawHidden::from(bump.alloc(Hidden::from_edge(edge)))
     }
 
     pub fn split_edge(&mut self, edge: &Edge) -> (Edge, Edge) {
         let middle = self.insert(edge);
-        let first = Edge::new(edge.tail(), unsafe { middle.upgrade() });
-        let last = Edge::new(unsafe { middle.upgrade() }, edge.head());
+        let first = Edge::new(edge.tail(), middle.upgrade());
+        let last = Edge::new(middle.upgrade(), edge.head());
         (first, last)
     }
 
@@ -157,13 +162,12 @@ impl fmt::Debug for Iter<'_> {
     }
 }
 
-// should partial eq check for ptr eq or value eq?
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq)]
 pub struct RawHidden(*const Hidden);
 
 impl RawHidden {
-    pub unsafe fn upgrade<'a>(&self) -> &'a Hidden {
-        unsafe { &*self.0 }
+    pub fn upgrade<'a>(&self) -> &'a Hidden {
+         unsafe { &*self.0 }
     }
 }
 
@@ -173,10 +177,21 @@ impl From<&Hidden> for RawHidden {
     }
 }
 
+impl From<&mut Hidden> for RawHidden {
+    fn from(value: &mut Hidden) -> Self {
+        Self(value as *const _)
+    }
+}
+
 impl Hash for RawHidden {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let inner = unsafe { self.upgrade() };
-        inner.hash(state);
+        self.upgrade().hash(state);
+    }
+}
+
+impl PartialEq for RawHidden {
+    fn eq(&self, other: &Self) -> bool {
+        ptr::eq(self.0, other.0)
     }
 }
 

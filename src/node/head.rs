@@ -3,17 +3,17 @@ use crate::node::*;
 use core::{fmt, ptr};
 use alloc::rc::Rc;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum RawHead {
     Hidden(RawHidden),
     Output(RawOutput),
 }
 
-impl From<Head<'_>> for RawHead {
-    fn from(head: Head) -> Self {
-        match head {
-            Head::Hidden(hidden) => RawHead::Hidden(hidden.into()),
-            Head::Output(output) => RawHead::Output(output.into()),
+impl RawHead {
+    pub fn upgrade(&self) -> Head {
+        match self {
+            Self::Hidden(hidden) => hidden.upgrade().into(),
+            Self::Output(output) => output.upgrade().into(),
         }
     }
 }
@@ -34,6 +34,13 @@ pub enum Head<'a> {
 }
 
 impl Head<'_> {
+    pub fn downgrade(&self) -> RawHead {
+        match self {
+            Self::Hidden(hidden) => RawHead::Hidden(hidden.downgrade()),
+            Self::Output(output) => RawHead::Output(output.downgrade())
+        }
+    }
+
     pub fn hidden(&self) -> Option<&Hidden> {
         match self {
             Self::Hidden(hidden) => Some(hidden),
@@ -117,15 +124,6 @@ impl fmt::Pointer for Head<'_> {
     }
 }
 
-impl From<RawHead> for Head<'_> {
-    fn from(value: RawHead) -> Self {
-        match value {
-            RawHead::Hidden(hidden) => Self::Hidden(unsafe { hidden.upgrade() }),
-            RawHead::Output(output) => Self::Output(unsafe { output.upgrade() }),
-        }
-    }
-}
-
 impl<'a> From<&'a Hidden> for Head<'a> {
     fn from(value: &'a Hidden) -> Self {
         Self::Hidden(value)
@@ -138,13 +136,6 @@ impl<'a> From<&'a Output> for Head<'a> {
     }
 }
 
-impl PartialEq<Tail<'_>> for Head<'_> {
-    fn eq(&self, other: &Tail) -> bool {
-        // are we supposed to check for ptr equality or value equality?
-        self.hidden().and_then(|lhs| other.hidden().map(|rhs| ptr::eq(lhs, rhs))).is_some()
-    }
-}
-
 impl PartialEq<Hidden> for Head<'_> {
     fn eq(&self, rhs: &Hidden) -> bool {
         self.hidden().map(|lhs| lhs == rhs).is_some()
@@ -154,6 +145,12 @@ impl PartialEq<Hidden> for Head<'_> {
 impl PartialEq<Output> for Head<'_> {
     fn eq(&self, rhs: &Output) -> bool {
         self.output().map(|lhs| lhs == rhs).is_some()
+    }
+}
+
+impl PartialEq<Tail<'_>> for Head<'_> {
+    fn eq(&self, other: &Tail) -> bool {
+        self.hidden().is_some_and(|lhs| other.hidden().is_some_and(|rhs| lhs.downgrade() == rhs.downgrade()))
     }
 }
 

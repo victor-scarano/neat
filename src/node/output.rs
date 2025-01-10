@@ -1,6 +1,6 @@
 extern crate alloc;
 use crate::{pop::Pop, node::*, node::Accum};
-use core::{array, cell::Cell, cmp, fmt, hash::{Hash, Hasher}, slice};
+use core::{array, cell::Cell, cmp, fmt, hash::{Hash, Hasher}, ptr::{self, NonNull}, slice};
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use hashbrown::HashMap;
 
@@ -15,6 +15,10 @@ pub struct Output {
 }
 
 impl Output {
+    pub fn downgrade(&self) -> RawOutput {
+        RawOutput::from(self)
+    }
+
     pub fn new<const I: usize>(innov: usize) -> Self {
         Pop::next_node_innov();
         Self {
@@ -94,11 +98,11 @@ impl<const O: usize> TryFrom<Vec<Output>> for Outputs<O> {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq)]
 pub struct RawOutput(*const Output);
 
 impl RawOutput {
-    pub unsafe fn upgrade<'a>(&self) -> &'a Output {
+    pub fn upgrade<'a>(&self) -> &'a Output {
         unsafe { &*self.0 }
     }
 }
@@ -111,8 +115,13 @@ impl From<&Output> for RawOutput {
 
 impl Hash for RawOutput {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let inner = unsafe { self.upgrade() };
-        inner.hash(state);
+        self.upgrade().hash(state);
+    }
+}
+
+impl PartialEq for RawOutput {
+    fn eq(&self, other: &Self) -> bool {
+        ptr::eq(self.0, other.0)
     }
 }
 

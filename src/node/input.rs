@@ -1,6 +1,6 @@
 extern crate alloc;
 use crate::{node::Node, pop::Pop};
-use core::{array, fmt, hash, slice};
+use core::{array, fmt, hash, slice, ptr::{self, NonNull}};
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -10,6 +10,10 @@ pub struct Input {
 }
 
 impl Input {
+    pub fn downgrade(&self) -> RawInput {
+        RawInput::from(self)
+    }
+
     pub fn new(innov: usize) -> Self {
         Pop::next_node_innov();
         Self { innov, bias: 0.0 }
@@ -76,18 +80,24 @@ impl<const I: usize> TryFrom<Vec<Input>> for Inputs<I> {
 }
 
 // should partial eq check for ptr eq or value eq?
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug)]
 pub struct RawInput(*const Input);
 
 impl RawInput {
-    pub unsafe fn upgrade<'a>(&self) -> &'a Input {
+    pub fn upgrade<'a>(&self) -> &'a Input {
         unsafe { &*self.0 }
     }
 }
 
 impl From<&Input> for RawInput {
     fn from(value: &Input) -> Self {
-        Self(value)
+        Self(value as *const _)
+    }
+}
+
+impl PartialEq for RawInput {
+    fn eq(&self, other: &Self) -> bool {
+        ptr::eq(self.0, other.0)
     }
 }
 

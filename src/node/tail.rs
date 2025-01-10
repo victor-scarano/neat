@@ -9,11 +9,17 @@ pub enum RawTail {
     Hidden(RawHidden),
 }
 
-impl From<Tail<'_>> for RawTail {
-    fn from(tail: Tail) -> Self {
-        match tail {
-            Tail::Input(input) => RawTail::Input(input.into()),
-            Tail::Hidden(hidden) => RawTail::Hidden(hidden.into()),
+impl RawTail {
+    pub fn upgrade(&self) -> Tail {
+        match self {
+            Self::Input(input) => {
+                let input = input.upgrade();
+                input.into()
+            }
+            Self::Hidden(hidden) => {
+                let hidden = hidden.upgrade();
+                hidden.into()
+            }
         }
     }
 }
@@ -34,6 +40,13 @@ pub enum Tail<'a> {
 }
 
 impl Tail<'_> {
+    pub fn downgrade(&self) -> RawTail {
+        match self {
+            Self::Input(input) => RawTail::Input((*input).downgrade()),
+            Self::Hidden(hidden) => RawTail::Hidden((*hidden).downgrade())
+        }
+    }
+
     pub fn input(&self) -> Option<&Input> {
         match self {
             Self::Input(input) => Some(input),
@@ -108,31 +121,8 @@ impl<'a> From<&'a Hidden> for Tail<'a> {
     }
 }
 
-impl From<RawTail> for Tail<'_> {
-    fn from(value: RawTail) -> Self {
-        match value {
-            RawTail::Input(input) => Self::Input(unsafe { input.upgrade() }),
-            RawTail::Hidden(hidden) => Self::Hidden(unsafe { hidden.upgrade() }),
-        }
-    }
-}
-
-impl PartialEq<Input> for Tail<'_> {
-    fn eq(&self, rhs: &Input) -> bool {
-        self.input().map(|lhs| lhs == rhs).is_some()
-    }
-}
-
-impl PartialEq<Hidden> for Tail<'_> {
-    fn eq(&self, rhs: &Hidden) -> bool {
-        self.hidden().map(|lhs| lhs == rhs).is_some()
-    }
-}
-
 impl PartialEq<Head<'_>> for Tail<'_> {
     fn eq(&self, other: &Head) -> bool {
-        // are we supposed to check for ptr equality or value equality?
-        self.hidden().and_then(|lhs| other.hidden().map(|rhs| ptr::eq(lhs, rhs))).is_some()
+        self.hidden().is_some_and(|lhs| other.hidden().is_some_and(|rhs| lhs.downgrade() == rhs.downgrade()))
     }
 }
-

@@ -36,7 +36,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
 
         let head = self.hiddens.iter().map(Head::from)
             .chain(self.outputs.iter().map(Head::from))
-            .filter(|head| tail != *head)
+            .filter(|head| tail != *head) // check for ptr eq
             .choose_stable(rng).unwrap();
 
         let edge = Edge::new(tail, head);
@@ -44,11 +44,9 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     }
 
     pub fn mutate_split_edge(&mut self, rng: &mut impl Rng) {
-        let edge = self.edges
-            .iter()
+        let edge = self.edges.iter()
             .filter(|edge| edge.enabled.get())
-            .choose_stable(rng)
-            .unwrap();
+            .choose_stable(rng).unwrap();
 
         edge.enabled.set(false);
 
@@ -64,6 +62,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     pub fn activate(&self, inputs: [f32; I]) -> [f32; O] {
         let mut map = HashMap::new();
 
+        // needs to iter in ordered
         for edge in self.edges.iter().take_while(|edge| edge.enabled.get()) {
             let eval = match edge.tail() {
                 Tail::Input(input) => input.eval(edge.weight, inputs),
