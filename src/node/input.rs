@@ -47,6 +47,7 @@ impl hash::Hash for Input {
     }
 }
 
+#[derive(Clone)]
 pub struct Inputs<const I: usize>(Box<[Input; I]>);
 
 impl<const I: usize> Inputs<I> {

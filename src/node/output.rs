@@ -62,6 +62,7 @@ impl Hash for Output {
     }
 }
 
+#[derive(Clone)]
 pub struct Outputs<const O: usize>(Box<[Output; O]>);
 
 impl<const O: usize> Outputs<O> {

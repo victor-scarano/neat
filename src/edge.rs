@@ -1,6 +1,16 @@
 extern crate alloc;
 use crate::{genome::Genome, node::*, pop::Pop};
-use core::{cell::Cell, cmp::Ordering, convert::Into, fmt, hash, iter, mem, ptr::NonNull};
+use core::{
+    cell::{Cell, RefCell},
+    cmp::Ordering,
+    convert::Into,
+    fmt,
+    hash,
+    iter,
+    mem::{self, MaybeUninit},
+    ptr::NonNull,
+    slice
+};
 use alloc::{collections::BTreeSet, rc::*};
 use bumpalo::Bump;
 use hashbrown::HashSet;
@@ -138,7 +148,7 @@ impl PartialOrd for RawEdge {
 }
 
 pub struct Edges {
-    bump: Bump,
+    bump: RefCell<Bump>,
     btree: BTreeSet<RawEdge>,
     hash: HashSet<RawEdge>,
 }
@@ -146,7 +156,7 @@ pub struct Edges {
 impl Edges {
     pub fn new() -> Self {
         Self {
-            bump: Bump::new(),
+            bump: RefCell::new(Bump::new()),
             btree: BTreeSet::new(),
             hash: HashSet::new(),
         }
@@ -158,7 +168,7 @@ impl Edges {
     }
 
     pub fn insert(&mut self, edge: Edge) {
-        let edge = RawEdge::from(self.bump.alloc(edge));
+        let edge = RawEdge::from(self.bump.borrow().alloc(edge));
         assert!(self.btree.insert(edge), "edge has already been inserted");
         assert!(self.hash.insert(edge), "edge has already been inserted");
     }
@@ -174,6 +184,38 @@ impl Edges {
             "the hashset and btreeset used in managing a genome's edges should always be the same"
         );
         self.hash.len()
+    }
+}
+
+// this clone impl hasnt been tested yet so idek if it works lmao
+// the thing thats making me have my doubts is whether or not allocating the
+// slice to the bump and extending the slice to the collections necessarily
+// means that they are "tied" together
+impl Clone for Edges {
+    fn clone(&self) -> Self {
+        let mut bump = self.bump.borrow_mut();
+        let mut chunks = bump.iter_allocated_chunks();
+
+        let bump = Bump::new();
+        let mut btree = BTreeSet::<RawEdge>::new();
+        let mut hash = HashSet::<RawEdge>::new();
+
+        if let Some(chunk) = chunks.next() {
+            let ptr = MaybeUninit::slice_as_ptr(chunk) as *const RawEdge;
+            let slice = unsafe { slice::from_raw_parts(ptr, self.len()) };
+            bump.alloc_slice_copy(slice);
+            btree.extend(slice);
+            hash.extend(slice);
+        }
+
+        for chunk in chunks {
+            let slice: &[RawEdge] = unsafe { mem::transmute(chunk) };
+            bump.alloc_slice_copy(slice);
+            btree.extend(slice);
+            hash.extend(slice);
+        }
+
+        Self { bump: RefCell::new(bump), btree, hash }
     }
 }
 

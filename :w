@@ -24,8 +24,7 @@ fn it_works() {
     let mut genome = Genome::<1, 1>::new();
     let mut rng = SmallRng::seed_from_u64(0);
     genome.mutate_add_edge(&mut rng);
-    mutate_split_edge(&mut genome, |_| true);
-    dbg!(&genome.hiddens);
-    let cloned = genome.hiddens.clone();
-    dbg!(&cloned);
+    genome.mutate_split_edge(&mut rng);
+    genome.mutate_split_edge(&mut rng);
+    dbg!(genome.hiddens);
 }

@@ -24,6 +24,7 @@ pub struct Hidden {
     aggreg: fn(&[f32]) -> f32,
 }
 
+
 impl Hidden {
     pub fn downgrade(&self) -> RawHidden {
         RawHidden::from(self)
@@ -131,6 +132,38 @@ impl Hiddens {
         }
 
         Iter(hiddens)
+    }
+}
+
+impl Clone for Hiddens {
+    fn clone(&self) -> Self {
+        let mut bump = self.bump.borrow_mut();
+        let max = bump.allocation_limit().unwrap_or_default() / size_of::<Hidden>();
+        let mut chunks = bump.iter_allocated_chunks();
+
+        let bump = Bump::new();
+
+        if let Some(chunk) = chunks.next() {
+            let ptr = MaybeUninit::slice_as_ptr(chunk) as *const Hidden;
+            // i think this len calculation will fix the issue where, if len is
+            // bigger than the max chunk size, then result of
+            // slice::from_raw_parts would extend into uncharted memory. the
+            // problem is, is i dont know if the calculation for retrieving the
+            // the max number of hiddens that can fit into a chunk.
+            let len = if self.len < max { self.len } else { max };
+            let slice = unsafe { slice::from_raw_parts(ptr, len) };
+            bump.alloc_slice_clone(slice);
+        }
+
+        for chunk in chunks {
+            // once again, if the size of a chunk isnt a multiple of the size of
+            // a hidden node, then there might be extra bytes that attempt to
+            // get mapped as a hidden node (as far as i understand transmute)
+            let slice: &[Hidden] = unsafe { mem::transmute(chunk) };
+            bump.alloc_slice_clone(slice);
+        }
+
+        Self { bump: RefCell::new(bump), len: self.len }
     }
 }
 

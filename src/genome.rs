@@ -6,7 +6,7 @@ use bumpalo::Bump;
 use hashbrown::{HashMap, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Genome<const I: usize, const O: usize> {
     pub inputs: Inputs<I>,
     pub outputs: Outputs<O>,
