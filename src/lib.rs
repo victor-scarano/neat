@@ -1,4 +1,4 @@
-// #![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(test), no_std)]
 #![feature(
     allocator_api, anonymous_lifetime_in_impl_trait,
     arbitrary_self_types_pointers, cell_update, iter_collect_into,
@@ -10,5 +10,4 @@ mod edge;
 mod genome;
 mod node;
 mod pop;
-#[cfg(test)]
 mod tests;

@@ -11,7 +11,7 @@ use core::{
     ptr::NonNull,
     slice
 };
-use alloc::{collections::BTreeSet, rc::*};
+use alloc::{collections::btree_set::{self, BTreeSet}, rc::*};
 use bumpalo::Bump;
 use hashbrown::HashSet;
 use rand::{seq::IteratorRandom, Rng};
@@ -103,7 +103,7 @@ impl PartialOrd for Edge {
 }
 
 #[derive(Copy, Clone, Eq)]
-struct RawEdge(NonNull<Edge>);
+pub struct RawEdge(NonNull<Edge>);
 
 impl RawEdge {
     pub fn upgrade<'a>(&self) -> &'a Edge {
@@ -147,16 +147,20 @@ impl PartialOrd for RawEdge {
     }
 }
 
-pub struct Edges {
+pub struct Edges<const CHUNK_LEN: usize = 32> {
     bump: RefCell<Bump>,
     btree: BTreeSet<RawEdge>,
     hash: HashSet<RawEdge>,
 }
 
-impl Edges {
+impl<const CHUNK_LEN: usize> Edges<CHUNK_LEN> {
     pub fn new() -> Self {
+        let bump = Bump::new();
+        assert_ne!(CHUNK_LEN, 0);
+        bump.set_allocation_limit(Some(CHUNK_LEN * size_of::<Edge>()));
+
         Self {
-            bump: RefCell::new(Bump::new()),
+            bump: RefCell::new(bump),
             btree: BTreeSet::new(),
             hash: HashSet::new(),
         }
@@ -173,7 +177,7 @@ impl Edges {
         assert!(self.hash.insert(edge), "edge has already been inserted");
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Edge> {
+    pub fn iter(&self) -> iter::Map<btree_set::Iter<'_, RawEdge>, for<'a> fn(&'a RawEdge) -> &'a Edge> {
         self.btree.iter().map(RawEdge::upgrade)
     }
 
@@ -191,28 +195,36 @@ impl Edges {
 // the thing thats making me have my doubts is whether or not allocating the
 // slice to the bump and extending the slice to the collections necessarily
 // means that they are "tied" together
-impl Clone for Edges {
+impl<const CHUNK_LEN: usize> Clone for Edges<CHUNK_LEN> {
     fn clone(&self) -> Self {
         let mut bump = self.bump.borrow_mut();
         let mut chunks = bump.iter_allocated_chunks();
 
         let bump = Bump::new();
-        let mut btree = BTreeSet::<RawEdge>::new();
-        let mut hash = HashSet::<RawEdge>::new();
+        let mut btree = BTreeSet::new();
+        let mut hash = HashSet::new();
 
         if let Some(chunk) = chunks.next() {
-            let ptr = MaybeUninit::slice_as_ptr(chunk) as *const RawEdge;
-            let slice = unsafe { slice::from_raw_parts(ptr, self.len()) };
-            bump.alloc_slice_copy(slice);
-            btree.extend(slice);
-            hash.extend(slice);
+            let ptr = MaybeUninit::slice_as_ptr(chunk) as *const Edge;
+
+            let len = match self.len() % CHUNK_LEN {
+                0 => self.len(),
+                non_zero => non_zero,
+            };
+
+            let chunk = unsafe { slice::from_raw_parts(ptr, self.len()) };
+
+            let edges = bump.alloc_slice_clone(chunk).iter().map(RawEdge::from);
+            btree.extend(edges.clone());
+            hash.extend(edges);
         }
 
         for chunk in chunks {
-            let slice: &[RawEdge] = unsafe { mem::transmute(chunk) };
-            bump.alloc_slice_copy(slice);
-            btree.extend(slice);
-            hash.extend(slice);
+            let chunk: &[Edge] = unsafe { mem::transmute(chunk) };
+
+            let edges = bump.alloc_slice_clone(chunk).iter().map(RawEdge::from);
+            btree.extend(edges.clone());
+            hash.extend(edges);
         }
 
         Self { bump: RefCell::new(bump), btree, hash }
