@@ -23,7 +23,6 @@ pub struct Hidden {
     aggreg: fn(&[f32]) -> f32,
 }
 
-
 impl Hidden {
     pub fn downgrade(&self) -> RawHidden {
         RawHidden::from(self)
@@ -174,7 +173,7 @@ impl<const CHUNK_LEN: usize> Clone for Hiddens<CHUNK_LEN> {
 impl fmt::Debug for Hiddens {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // note that this debug impl does not reflect the fact that this struct
-        // internally manages a bump allocator or a length.
+        // internally manages a bump allocator or a length field.
         f.debug_list().entries(self.iter()).finish()
     }
 }

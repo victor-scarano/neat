@@ -79,14 +79,12 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         todo!()
     }
 
-    pub fn crossover(lhs: Self, rhs: Self, rng: &mut impl Rng) -> Self {
+    pub fn crossover(mut lhs: Self, mut rhs: Self, rng: &mut impl Rng) -> Self {
         const MATCHING: f64 = 2.0 / 3.0;
 
         // swap to order by fitness
         if lhs.fitness > rhs.fitness {
-            let temp = lhs;
-            let lhs = rhs;
-            let rhs = temp;
+            mem::swap(&mut lhs, &mut rhs);
         }
 
         // find innov intersections
@@ -94,7 +92,8 @@ impl<const I: usize, const O: usize> Genome<I, O> {
         // if the parents' fitnesses are the same,
         // choose a random edge
         // if the parents' fitnesses are not the same
-        // choose an edge based on the preference for the higher performing parent
+        // choose an edge based on the preference for the higher performing
+        Edges::innov_intersection(&lhs.edges, &rhs.edges, |key| key);
 
         todo!()
     }

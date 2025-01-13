@@ -6,15 +6,15 @@ use core::{
     cmp::Ordering,
     convert::Into,
     fmt,
-    hash,
-    iter,
+    hash::{self, BuildHasherDefault},
+    iter::Map,
     mem::{self, MaybeUninit},
     ptr::NonNull,
     slice
 };
 use alloc::{collections::btree_set::{self, BTreeSet}, rc::*};
 use bumpalo::Bump;
-use hashbrown::HashSet;
+use hashbrown::{DefaultHashBuilder, hash_set::{HashSet, Intersection}};
 use rand::{seq::IteratorRandom, Rng};
 
 #[derive(Clone, PartialEq)]
@@ -81,7 +81,7 @@ impl fmt::Debug for Edge {
 struct RawEdge(*const Edge);
 
 impl RawEdge {
-    fn upgrade(&self) -> &Edge {
+    fn upgrade<'a>(&self) -> &'a Edge {
         unsafe { &*self.0 }
     }
 }
@@ -96,7 +96,7 @@ impl From<&Edge> for RawEdge {
 pub struct RawOrdEdge(RawEdge);
 
 impl RawOrdEdge {
-    fn upgrade(&self) -> &Edge {
+    fn upgrade<'a>(&self) -> &'a Edge {
         self.0.upgrade()
     }
 }
@@ -128,7 +128,7 @@ impl PartialOrd for RawOrdEdge {
 }
 
 #[derive(Eq)]
-struct RawHashEdge(RawEdge);
+pub struct RawHashEdge(RawEdge);
 
 impl RawHashEdge {
     fn upgrade(&self) -> &Edge {
@@ -184,7 +184,7 @@ impl<const CHUNK_LEN: usize> Edges<CHUNK_LEN> {
         assert!(self.hash.insert(RawHashEdge(edge)), "edge has already been inserted");
     }
 
-    pub fn iter(&self) -> iter::Map<btree_set::Iter<'_, RawOrdEdge>, fn(&RawOrdEdge) -> &Edge> {
+    pub fn iter(&self) -> Map<btree_set::Iter<'_, RawOrdEdge>, fn(&RawOrdEdge) -> &Edge> {
         self.btree.iter().map(RawOrdEdge::upgrade)
     }
 
@@ -195,6 +195,14 @@ impl<const CHUNK_LEN: usize> Edges<CHUNK_LEN> {
             "the hashset and btreeset used in managing a genome's edges should always be the same"
         );
         self.hash.len()
+    }
+
+    pub fn innov_intersection<'a, M: Fn(&Edge) -> &Edge>(
+        lhs: &'a Self,
+        rhs: &'a Self,
+        map: M
+    ) -> InnovIntersection<'a, M> {
+        InnovIntersection { intersection: lhs.hash.intersection(&rhs.hash), map }
     }
 }
 
@@ -244,3 +252,15 @@ impl fmt::Debug for Edges {
     }
 }
 
+pub struct InnovIntersection<'a, M: Fn(&Edge) -> &Edge> {
+    intersection: Intersection<'a, RawHashEdge, DefaultHashBuilder>,
+    map: M,
+}
+
+impl<'a, M: Fn(&Edge) -> &Edge> Iterator for InnovIntersection<'a, M> {
+    type Item = &'a Edge;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.intersection.next().map(RawHashEdge::upgrade).map(&mut self.map)
+    }
+}
