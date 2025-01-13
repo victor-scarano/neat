@@ -80,6 +80,22 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     }
 
     pub fn crossover(lhs: Self, rhs: Self, rng: &mut impl Rng) -> Self {
+        const MATCHING: f64 = 2.0 / 3.0;
+
+        // swap to order by fitness
+        if lhs.fitness > rhs.fitness {
+            let temp = lhs;
+            let lhs = rhs;
+            let rhs = temp;
+        }
+
+        // find innov intersections
+        // for each intersection,
+        // if the parents' fitnesses are the same,
+        // choose a random edge
+        // if the parents' fitnesses are not the same
+        // choose an edge based on the preference for the higher performing parent
+
         todo!()
     }
 }

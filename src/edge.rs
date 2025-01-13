@@ -1,6 +1,7 @@
 extern crate alloc;
 use crate::{genome::Genome, node::*, pop::Pop};
 use core::{
+    borrow::Borrow,
     cell::{Cell, RefCell},
     cmp::Ordering,
     convert::Into,
@@ -16,7 +17,7 @@ use bumpalo::Bump;
 use hashbrown::HashSet;
 use rand::{seq::IteratorRandom, Rng};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Edge {
     tail: RawTail,
     head: RawHead,
@@ -76,87 +77,93 @@ impl fmt::Debug for Edge {
     }
 }
 
-impl hash::Hash for Edge {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.innov.hash(state);
-    }
-}
-
-// what exactly should be the ord implementation?
-impl Ord for Edge {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.layer.cmp(&other.layer).then(self.innov.cmp(&other.innov))
-    }
-}
-
-// used to be equal if innovations were equal, but needs to reflect ord impl
-impl PartialEq for Edge {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other).is_eq() && self.innov == other.innov
-    }
-}
-
-impl PartialOrd for Edge {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-#[derive(Copy, Clone, Eq)]
-pub struct RawEdge(NonNull<Edge>);
+#[derive(Clone, Copy, Eq, PartialEq)]
+struct RawEdge(*const Edge);
 
 impl RawEdge {
-    pub fn upgrade<'a>(&self) -> &'a Edge {
-        unsafe { self.0.as_ref() }
+    fn upgrade(&self) -> &Edge {
+        unsafe { &*self.0 }
     }
 }
 
 impl From<&Edge> for RawEdge {
     fn from(value: &Edge) -> Self {
-        Self(NonNull::from_ref(value))
+        Self(value)
     }
 }
 
-impl From<&mut Edge> for RawEdge {
-    fn from(value: &mut Edge) -> Self {
-        Self(NonNull::from_mut(value))
+#[derive(Eq)]
+pub struct RawOrdEdge(RawEdge);
+
+impl RawOrdEdge {
+    fn upgrade(&self) -> &Edge {
+        self.0.upgrade()
     }
 }
 
-impl hash::Hash for RawEdge {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.upgrade().hash(state);
+impl From<&Edge> for RawOrdEdge {
+    fn from(value: &Edge) -> Self {
+        Self(RawEdge(value))
     }
 }
 
-impl Ord for RawEdge {
+impl Ord for RawOrdEdge {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.upgrade().cmp(other.upgrade())
+        let lhs = self.upgrade();
+        let rhs = other.upgrade();
+        lhs.layer.cmp(&rhs.layer).then(lhs.innov.cmp(&rhs.innov))
     }
 }
 
-impl PartialEq for RawEdge {
+impl PartialEq for RawOrdEdge {
     fn eq(&self, other: &Self) -> bool {
-        self.upgrade().eq(other.upgrade())
+        self.upgrade().layer == other.upgrade().layer
     }
 }
 
-impl PartialOrd for RawEdge {
+impl PartialOrd for RawOrdEdge {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
+#[derive(Eq)]
+struct RawHashEdge(RawEdge);
+
+impl RawHashEdge {
+    fn upgrade(&self) -> &Edge {
+        self.0.upgrade()
+    }
+}
+
+impl From<&Edge> for RawHashEdge {
+    fn from(value: &Edge) -> Self {
+        Self(RawEdge(value))
+    }
+}
+
+impl hash::Hash for RawHashEdge {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.upgrade().innov.hash(state);
+    }
+}
+
+impl PartialEq for RawHashEdge {
+    fn eq(&self, other: &Self) -> bool {
+        self.upgrade().innov == other.upgrade().innov
+    }
+}
+
 pub struct Edges<const CHUNK_LEN: usize = 32> {
     bump: RefCell<Bump>,
-    btree: BTreeSet<RawEdge>,
-    hash: HashSet<RawEdge>,
+    btree: BTreeSet<RawOrdEdge>,
+    hash: HashSet<RawHashEdge>,
 }
 
 impl<const CHUNK_LEN: usize> Edges<CHUNK_LEN> {
     pub fn new() -> Self {
-        let bump = Bump::new();
         assert_ne!(CHUNK_LEN, 0);
+        let bump = Bump::new();
         bump.set_allocation_limit(Some(CHUNK_LEN * size_of::<Edge>()));
 
         Self {
@@ -167,18 +174,18 @@ impl<const CHUNK_LEN: usize> Edges<CHUNK_LEN> {
     }
 
     pub fn get(&self, edge: &Edge) -> Option<&Edge> {
-        let edge = RawEdge::from(edge);
-        self.hash.get(&edge).map(RawEdge::upgrade)
+        let edge = RawHashEdge::from(edge);
+        self.hash.get(&edge).map(RawHashEdge::upgrade)
     }
 
     pub fn insert(&mut self, edge: Edge) {
-        let edge = RawEdge::from(self.bump.borrow().alloc(edge));
-        assert!(self.btree.insert(edge), "edge has already been inserted");
-        assert!(self.hash.insert(edge), "edge has already been inserted");
+        let edge = RawEdge(self.bump.borrow().alloc(edge));
+        assert!(self.btree.insert(RawOrdEdge(edge)), "edge has already been inserted");
+        assert!(self.hash.insert(RawHashEdge(edge)), "edge has already been inserted");
     }
 
-    pub fn iter(&self) -> iter::Map<btree_set::Iter<'_, RawEdge>, for<'a> fn(&'a RawEdge) -> &'a Edge> {
-        self.btree.iter().map(RawEdge::upgrade)
+    pub fn iter(&self) -> iter::Map<btree_set::Iter<'_, RawOrdEdge>, fn(&RawOrdEdge) -> &Edge> {
+        self.btree.iter().map(RawOrdEdge::upgrade)
     }
 
     pub fn len(&self) -> usize {
@@ -212,30 +219,22 @@ impl<const CHUNK_LEN: usize> Clone for Edges<CHUNK_LEN> {
                 non_zero => non_zero,
             };
 
-            let chunk = unsafe { slice::from_raw_parts(ptr, self.len()) };
+            let chunk = unsafe { slice::from_raw_parts(ptr, len) };
 
-            let edges = bump.alloc_slice_clone(chunk).iter().map(RawEdge::from);
-            btree.extend(edges.clone());
-            hash.extend(edges);
+            let edges = bump.alloc_slice_clone(chunk).iter();
+            btree.extend(edges.clone().map(RawOrdEdge::from));
+            hash.extend(edges.map(RawHashEdge::from));
         }
 
         for chunk in chunks {
             let chunk: &[Edge] = unsafe { mem::transmute(chunk) };
 
-            let edges = bump.alloc_slice_clone(chunk).iter().map(RawEdge::from);
-            btree.extend(edges.clone());
-            hash.extend(edges);
+            let edges = bump.alloc_slice_clone(chunk).iter();
+            btree.extend(edges.clone().map(RawOrdEdge::from));
+            hash.extend(edges.map(RawHashEdge::from));
         }
 
         Self { bump: RefCell::new(bump), btree, hash }
-    }
-}
-
-impl iter::Extend<RawEdge> for Edges {
-    fn extend<T: IntoIterator<Item = RawEdge>>(&mut self, iter: T) {
-        let mut iter = iter.into_iter();
-        self.btree.extend(&mut iter);
-        self.hash.extend(&mut iter);
     }
 }
 
