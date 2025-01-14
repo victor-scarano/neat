@@ -6,11 +6,11 @@ use core::{
     fmt,
     hash::{Hash, Hasher},
     mem::{self, MaybeUninit},
-    ptr::{self, NonNull},
+    ptr,
     slice
 };
-use alloc::{rc::Rc, vec::Vec};
-use bumpalo::{Bump, ChunkIter};
+use alloc::vec::Vec;
+use bumpalo::Bump;
 use hashbrown::HashMap;
 
 #[derive(Clone)]

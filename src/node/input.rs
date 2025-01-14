@@ -1,7 +1,7 @@
 extern crate alloc;
 use crate::{node::Node, pop::Pop};
-use core::{array, fmt, hash, slice, ptr::{self, NonNull}};
-use alloc::{boxed::Box, rc::Rc, vec::Vec};
+use core::{array, fmt, hash, slice, ptr};
+use alloc::{boxed::Box, vec::Vec};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Input {

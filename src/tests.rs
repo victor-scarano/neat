@@ -30,16 +30,3 @@ fn it_works() {
     dbg!(&genome.hiddens);
 }
 
-
-
-
-
-
-
-
-use core::iter::*;
-use core::slice::Iter;
-
-fn foo<'a, F: FnMut(&i32) -> i32>(arr: &'a [i32], f: F) -> Map<Iter<'a, i32>, F> {
-    arr.iter().map(f)
-}

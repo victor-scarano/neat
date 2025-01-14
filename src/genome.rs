@@ -1,9 +1,7 @@
 extern crate alloc;
-use crate::{edge::*, node::*};
-use core::{array, fmt, mem};
-use alloc::{collections::BTreeMap, vec::Vec, rc::Rc};
-use bumpalo::Bump;
-use hashbrown::{HashMap, HashSet};
+use crate::{edge::*, fitness::Fitness, node::*};
+use core::{array, mem};
+use hashbrown::HashMap;
 use rand::{Rng, seq::IteratorRandom};
 
 #[derive(Clone, Debug)]
@@ -12,7 +10,7 @@ pub struct Genome<const I: usize, const O: usize> {
     pub outputs: Outputs<O>,
     pub hiddens: Hiddens,
     pub edges: Edges,
-    pub fitness: f32,
+    pub fitness: Fitness,
 }
 
 impl<const I: usize, const O: usize> Genome<I, O> {
@@ -25,7 +23,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             outputs: Outputs::new::<I>(),
             hiddens: Hiddens::new(),
             edges: Edges::new(),
-            fitness: 0.0
+            fitness: Fitness::from(0.0)
         }
     }
 
@@ -80,20 +78,45 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     }
 
     pub fn crossover(mut lhs: Self, mut rhs: Self, rng: &mut impl Rng) -> Self {
-        const MATCHING: f64 = 2.0 / 3.0;
-
         // swap to order by fitness
         if lhs.fitness > rhs.fitness {
             mem::swap(&mut lhs, &mut rhs);
         }
 
-        // find innov intersections
-        // for each intersection,
-        // if the parents' fitnesses are the same,
-        // choose a random edge
-        // if the parents' fitnesses are not the same
-        // choose an edge based on the preference for the higher performing
-        Edges::innov_intersection(&lhs.edges, &rhs.edges, |key| key);
+        let mut edges = Edges::new();
+
+        Edges::innov_int(&lhs.edges, &rhs.edges).map(|key| {
+            let choice = Fitness::gen_bool(lhs.fitness, rhs.fitness, rng);
+            let parent = match choice { false => &lhs, true => &rhs };
+            parent.edges.get(key).unwrap()
+        }).collect_into(&mut edges);
+
+        match lhs.fitness == rhs.fitness {
+            true => Edges::innov_diff(&lhs.edges, &rhs.edges).collect_into(&mut edges),
+            false => Edges::innov_sym_diff(&lhs.edges, &rhs.edges).filter(|_| rng.gen()).collect_into(&mut edges),
+        };
+
+        // at this point the child edges still point to the parent nodes.
+        // in order to fix this, we need to store a map of the references to the
+        // parent nodes to new child nodes.
+        // we iterate over the child edges. if the node is already in the map,
+        // replace the node in the edge with the new child node in the map. if
+        // the node is not already in the map, insert the node as a key, and a
+        // clone of it as the value, and set the value as the edge's node.
+        // the only issue at this point is that i dont know how we're going to
+        // actually mutate the child edges to replace the parent nodes that they
+        // point to.
+        for edge in edges.iter() {
+            match edge.tail() {
+                Tail::Input(input) => (),
+                Tail::Hidden(hidden) => (),
+            }
+
+            match edge.head() {
+                Head::Hidden(hidden) => (),
+                Head::Output(output) => (),
+            }
+        }
 
         todo!()
     }

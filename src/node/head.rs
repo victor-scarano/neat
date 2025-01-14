@@ -1,7 +1,6 @@
 extern crate alloc;
 use crate::node::*;
-use core::{fmt, ptr};
-use alloc::rc::Rc;
+use core::fmt;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum RawHead {

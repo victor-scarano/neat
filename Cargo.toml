@@ -2,9 +2,20 @@
 name = "neat"
 version = "0.1.0"
 edition = "2021"
+description = "An implementation of NEAT in Rust"
+license = "GPLv3"
+repository = "https://github.com/victor-scarano/neat"
+keywords = ["neat"]
 
 [dependencies]
 bumpalo = { version = "3.16.0", default-features = false, features = ["allocator_api", "boxed"] }
 hashbrown = { version = "0.15.2", default-features = false, features = ["default-hasher"] }
 rand = { version = "0.8.5", default-features = false, features = ["alloc", "small_rng"] }
 
+# POSSIBLE CATEGORY SLUGS
+# algorithms
+# no-std
+# science
+# science::neuroscience
+# simulation
+# visualization

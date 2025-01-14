@@ -1,21 +1,18 @@
 extern crate alloc;
-use crate::{genome::Genome, node::*, pop::Pop};
+use crate::{node::*, pop::Pop};
 use core::{
-    borrow::Borrow,
     cell::{Cell, RefCell},
     cmp::Ordering,
     convert::Into,
     fmt,
-    hash::{self, BuildHasherDefault},
-    iter::Map,
+    hash,
+    iter::{IntoIterator, Map},
     mem::{self, MaybeUninit},
-    ptr::NonNull,
     slice
 };
-use alloc::{collections::btree_set::{self, BTreeSet}, rc::*};
+use alloc::collections::btree_set::{self, BTreeSet};
 use bumpalo::Bump;
-use hashbrown::{DefaultHashBuilder, hash_set::{HashSet, Intersection}};
-use rand::{seq::IteratorRandom, Rng};
+use hashbrown::{DefaultHashBuilder, hash_set::{Difference, HashSet, Intersection, SymmetricDifference}};
 
 #[derive(Clone, PartialEq)]
 pub struct Edge {
@@ -28,7 +25,7 @@ pub struct Edge {
 }
 
 impl Edge {
-    pub fn new(tail: impl Into<Tail>, head: impl Into<Head>) -> Self {
+    pub fn new<'a>(tail: impl Into<Tail<'a>>, head: impl Into<Head<'a>>) -> Self {
         let tail: Tail = tail.into();
         let head: Head = head.into();
 
@@ -107,6 +104,12 @@ impl From<&Edge> for RawOrdEdge {
     }
 }
 
+impl From<RawEdge> for RawOrdEdge {
+    fn from(value: RawEdge) -> Self {
+        Self(value)
+    }
+}
+
 impl Ord for RawOrdEdge {
     fn cmp(&self, other: &Self) -> Ordering {
         let lhs = self.upgrade();
@@ -139,6 +142,12 @@ impl RawHashEdge {
 impl From<&Edge> for RawHashEdge {
     fn from(value: &Edge) -> Self {
         Self(RawEdge(value))
+    }
+}
+
+impl From<RawEdge> for RawHashEdge {
+    fn from(value: RawEdge) -> Self {
+        Self(value)
     }
 }
 
@@ -197,12 +206,16 @@ impl<const CHUNK_LEN: usize> Edges<CHUNK_LEN> {
         self.hash.len()
     }
 
-    pub fn innov_intersection<'a, M: Fn(&Edge) -> &Edge>(
-        lhs: &'a Self,
-        rhs: &'a Self,
-        map: M
-    ) -> InnovIntersection<'a, M> {
-        InnovIntersection { intersection: lhs.hash.intersection(&rhs.hash), map }
+    pub fn innov_int<'a>(lhs: &'a Self, rhs: &'a Self) -> InnovInt<'a> {
+        lhs.hash.intersection(&rhs.hash).map(RawHashEdge::upgrade)
+    }
+
+    pub fn innov_diff<'a>(lhs: &'a Self, rhs: &'a Self) -> InnovDiff<'a> {
+        lhs.hash.difference(&rhs.hash).map(RawHashEdge::upgrade)
+    }
+
+    pub fn innov_sym_diff<'a>(lhs: &'a Self, rhs: &'a Self) -> InnovSymDiff<'a> {
+        lhs.hash.symmetric_difference(&rhs.hash).map(RawHashEdge::upgrade)
     }
 }
 
@@ -252,15 +265,23 @@ impl fmt::Debug for Edges {
     }
 }
 
-pub struct InnovIntersection<'a, M: Fn(&Edge) -> &Edge> {
-    intersection: Intersection<'a, RawHashEdge, DefaultHashBuilder>,
-    map: M,
-}
+impl<'a> Extend<&'a Edge> for Edges {
+    fn extend<T: IntoIterator<Item = &'a Edge>>(&mut self, iter: T) {
+        let bump = self.bump.borrow();
+        let edges = iter.into_iter().cloned().map(|edge| RawEdge(bump.alloc(edge)));
 
-impl<'a, M: Fn(&Edge) -> &Edge> Iterator for InnovIntersection<'a, M> {
-    type Item = &'a Edge;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.intersection.next().map(RawHashEdge::upgrade).map(&mut self.map)
+        // cant call clone because T::Iter is not Clone
+        // self.btree.extend(edges.clone().map(RawOrdEdge::from));
+        // self.hash.extend(edges.map(RawHashEdge::from));
+        
+        for edge in edges {
+            self.btree.insert(RawOrdEdge::from(edge));
+            self.hash.insert(RawHashEdge::from(edge));
+        }
     }
 }
+
+type UpgradeMap<I> = Map<I, fn(&RawHashEdge) -> &Edge>;
+type InnovInt<'a> = UpgradeMap<Intersection<'a, RawHashEdge, DefaultHashBuilder>>;
+type InnovDiff<'a> = UpgradeMap<Difference<'a, RawHashEdge, DefaultHashBuilder>>;
+type InnovSymDiff<'a> = UpgradeMap<SymmetricDifference<'a, RawHashEdge, DefaultHashBuilder>>;
