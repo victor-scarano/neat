@@ -13,6 +13,7 @@ use core::{
 use alloc::collections::btree_set::{self, BTreeSet};
 use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, hash_set::{Difference, HashSet, Intersection, SymmetricDifference}};
+use rand::Rng;
 
 #[derive(Clone, PartialEq)]
 pub struct Edge {
@@ -210,12 +211,14 @@ impl<const CHUNK_LEN: usize> Edges<CHUNK_LEN> {
         lhs.hash.intersection(&rhs.hash).map(RawHashEdge::upgrade)
     }
 
-    pub fn innov_diff<'a>(lhs: &'a Self, rhs: &'a Self) -> InnovDiff<'a> {
-        lhs.hash.difference(&rhs.hash).map(RawHashEdge::upgrade)
+    pub fn innov_diff<'a, R: Rng>(lhs: &'a Self, rhs: &'a Self) -> InnovDiff<'a, R> {
+        InnovDiff::Diff(lhs.hash.difference(&rhs.hash).map(RawHashEdge::upgrade))
     }
 
-    pub fn innov_sym_diff<'a>(lhs: &'a Self, rhs: &'a Self) -> InnovSymDiff<'a> {
-        lhs.hash.symmetric_difference(&rhs.hash).map(RawHashEdge::upgrade)
+    pub fn innov_sym_diff<'a, R: Rng>(lhs: &'a Self, rhs: &'a Self, rng: &mut R) -> InnovDiff<'a, R> {
+        // let a = InnovDiff::SymDiff(lhs.hash.symmetric_difference(&rhs.hash));
+            // .filter_map(|edge| rng.gen::<bool>().then_some(edge.upgrade())));
+        todo!()
     }
 }
 
@@ -281,7 +284,22 @@ impl<'a> Extend<&'a Edge> for Edges {
     }
 }
 
-type UpgradeMap<I> = Map<I, fn(&RawHashEdge) -> &Edge>;
-type InnovInt<'a> = UpgradeMap<Intersection<'a, RawHashEdge, DefaultHashBuilder>>;
-type InnovDiff<'a> = UpgradeMap<Difference<'a, RawHashEdge, DefaultHashBuilder>>;
-type InnovSymDiff<'a> = UpgradeMap<SymmetricDifference<'a, RawHashEdge, DefaultHashBuilder>>;
+type InnovInt<'a> = Map<Intersection<'a, RawHashEdge, DefaultHashBuilder>, fn(&RawHashEdge) -> &Edge>;
+type Diff<'a> = Map<Difference<'a, RawHashEdge, DefaultHashBuilder>, fn(&RawHashEdge) -> &Edge>;
+type SymDiff<'a> = Map<SymmetricDifference<'a, RawHashEdge, DefaultHashBuilder>, fn(&RawHashEdge) -> &Edge>;
+
+pub enum InnovDiff<'a, R: Rng> {
+    Diff(Diff<'a>),
+    SymDiff { iter: SymDiff<'a>, rng: &'a mut R },
+}
+
+impl<'a, R: Rng> Iterator for InnovDiff<'a, R> {
+    type Item = &'a Edge;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Diff(diff) => diff.next(),
+            Self::SymDiff { iter, rng } => iter.find(|_| rng.gen())
+        }
+    }
+}

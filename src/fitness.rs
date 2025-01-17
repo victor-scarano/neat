@@ -1,18 +1,29 @@
-use core::ops::Deref;
+use crate::genome::Genome;
+use core::{mem, ops::Deref};
 use rand::Rng;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Fitness(f32);
 
 impl Fitness {
-    pub fn gen_bool(lhs: Self, rhs: Self, rng: &mut impl Rng) -> bool {
+    pub fn rand_parent<'a, const I: usize, const O: usize>(
+        mut lhs: &'a Genome<I, O>,
+        mut rhs: &'a Genome<I, O>,
+        rng: &mut impl Rng
+    ) -> &'a Genome<I, O> {
         // this will later be a field in the pop struct
         const MATCHING_PREFERENCE: f64 = 2.0 / 3.0;
 
-        match lhs == rhs {
-            true => rng.gen(),
-            false => rng.gen_bool(MATCHING_PREFERENCE)
+        if lhs.fitness > rhs.fitness {
+            mem::swap(&mut lhs, &mut rhs);
         }
+
+        let choice = match lhs.fitness == rhs.fitness {
+            false => rng.gen_bool(MATCHING_PREFERENCE),
+            true => rng.gen(),
+        };
+
+        match choice { false => lhs, true => rhs }
     }
 }
 
