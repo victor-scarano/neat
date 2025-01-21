@@ -23,7 +23,7 @@ impl<const I: usize, const O: usize> Genome<I, O> {
             outputs: Outputs::new::<I>(),
             hiddens: Hiddens::new(),
             edges: Edges::new(),
-            fitness: Fitness::from(0.0)
+            fitness: Fitness::from(0.0),
         }
     }
 
@@ -78,13 +78,9 @@ impl<const I: usize, const O: usize> Genome<I, O> {
     }
 
     pub fn crossover(lhs: Self, rhs: Self, rng: &mut impl Rng) -> Self {
-        let int = Edges::innov_int(&lhs.edges, &rhs.edges)
-            .map(|key| Fitness::rand_parent(&lhs, &rhs, rng).edges.get(key).unwrap());
-
-        let diff = match lhs.fitness == rhs.fitness {
-            true => Edges::innov_diff(&lhs.edges, &rhs.edges),
-            false => Edges::innov_sym_diff(&lhs.edges, &rhs.edges, rng),
-        };
+        // choose edges for child that will be inherited from parents
+        let int = Edges::innov_matching(&lhs, &rhs, rng);
+        let diff = Edges::innov_disjoint(&lhs, &rhs, rng);
 
         let tails = HashSet::<Tail>::new();
         let heads = HashSet::<Head>::new();

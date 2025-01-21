@@ -1,5 +1,5 @@
 extern crate alloc;
-use crate::{node::*, pop::Pop};
+use crate::{fitness::Fitness, genome::Genome, node::*, pop::Pop};
 use core::{
     cell::{Cell, RefCell},
     cmp::Ordering,
@@ -183,6 +183,17 @@ impl<const CHUNK_LEN: usize> Edges<CHUNK_LEN> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        debug_assert_eq!(
+            self.btree.len(),
+            self.hash.len(),
+            "the hashset and btreeset used in managing a genome's edges should always be the same"
+        );
+        self.hash.len()
+    }
+}
+
+impl Edges {
     pub fn get(&self, edge: &Edge) -> Option<&Edge> {
         let edge = RawHashEdge::from(edge);
         self.hash.get(&edge).map(RawHashEdge::upgrade)
@@ -198,35 +209,36 @@ impl<const CHUNK_LEN: usize> Edges<CHUNK_LEN> {
         self.btree.iter().map(RawOrdEdge::upgrade)
     }
 
-    pub fn len(&self) -> usize {
-        debug_assert_eq!(
-            self.btree.len(),
-            self.hash.len(),
-            "the hashset and btreeset used in managing a genome's edges should always be the same"
-        );
-        self.hash.len()
+    pub fn innov_matching<'a, R: Rng, const I: usize, const O: usize>(
+        lhs: &'a Genome<I, O>,
+        rhs: &'a Genome<I, O>,
+        rng: &'a mut R,
+    ) -> InnovMatching<'a, R, I, O> {
+        // i could use filter_map instead of map with an unwrap inside, but
+        // the call to unwrap should never fail, and filter_map would hide any
+        // fails to the unwrap
+        InnovMatching { iter: lhs.edges.hash.intersection(&rhs.edges.hash).map(RawHashEdge::upgrade), lhs, rhs, rng }
     }
 
-    pub fn innov_int<'a>(lhs: &'a Self, rhs: &'a Self) -> InnovInt<'a> {
-        lhs.hash.intersection(&rhs.hash).map(RawHashEdge::upgrade)
-    }
-
-    pub fn innov_diff<'a, R: Rng>(lhs: &'a Self, rhs: &'a Self) -> InnovDiff<'a, R> {
-        InnovDiff::Diff(lhs.hash.difference(&rhs.hash).map(RawHashEdge::upgrade))
-    }
-
-    pub fn innov_sym_diff<'a, R: Rng>(lhs: &'a Self, rhs: &'a Self, rng: &mut R) -> InnovDiff<'a, R> {
-        // let a = InnovDiff::SymDiff(lhs.hash.symmetric_difference(&rhs.hash));
-            // .filter_map(|edge| rng.gen::<bool>().then_some(edge.upgrade())));
-        todo!()
+    pub fn innov_disjoint<'a, R: Rng, const I: usize, const O: usize>(
+        lhs: &'a Genome<I, O>,
+        rhs: &'a Genome<I, O>,
+        rng: &'a mut R,
+    ) -> InnovDisjoint<'a, R> {
+        match lhs.fitness == rhs.fitness {
+            true => InnovDisjoint::EqFitness(lhs.edges.hash.difference(&rhs.edges.hash).map(RawHashEdge::upgrade)),
+            false => InnovDisjoint::MoreFit {
+                iter: lhs.edges.hash.symmetric_difference(&rhs.edges.hash).map(RawHashEdge::upgrade),
+                rng
+            },
+        }
     }
 }
 
-// this clone impl hasnt been tested yet so idek if it works lmao
-// the thing thats making me have my doubts is whether or not allocating the
-// slice to the bump and extending the slice to the collections necessarily
-// means that they are "tied" together
 impl<const CHUNK_LEN: usize> Clone for Edges<CHUNK_LEN> {
+    // the thing thats making me have my doubts is whether or not allocating the
+    // slice to the bump and extending the slice to the collections necessarily
+    // means that they are "tied" together
     fn clone(&self) -> Self {
         let mut bump = self.bump.borrow_mut();
         let mut chunks = bump.iter_allocated_chunks();
@@ -284,22 +296,41 @@ impl<'a> Extend<&'a Edge> for Edges {
     }
 }
 
-type InnovInt<'a> = Map<Intersection<'a, RawHashEdge, DefaultHashBuilder>, fn(&RawHashEdge) -> &Edge>;
+// these type defs are just to stop clippy complaints
+type Int<'a> = Map<Intersection<'a, RawHashEdge, DefaultHashBuilder>, fn(&RawHashEdge) -> &Edge>;
 type Diff<'a> = Map<Difference<'a, RawHashEdge, DefaultHashBuilder>, fn(&RawHashEdge) -> &Edge>;
 type SymDiff<'a> = Map<SymmetricDifference<'a, RawHashEdge, DefaultHashBuilder>, fn(&RawHashEdge) -> &Edge>;
 
-pub enum InnovDiff<'a, R: Rng> {
-    Diff(Diff<'a>),
-    SymDiff { iter: SymDiff<'a>, rng: &'a mut R },
+// is there srs no way to describe this same functionality in the return type of the innov_matching function?
+pub struct InnovMatching<'a, R: Rng, const I: usize, const O: usize> {
+    iter: Int<'a>,
+    lhs: &'a Genome<I, O>,
+    rhs: &'a Genome<I, O>,
+    rng: &'a mut R,
 }
 
-impl<'a, R: Rng> Iterator for InnovDiff<'a, R> {
+impl<'a, R: Rng, const I: usize, const O: usize> Iterator for InnovMatching<'a, R, I, O> {
+    type Item = &'a Edge;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|key| Fitness::rand_parent(self.lhs, self.rhs, self.rng).edges.get(key).unwrap())
+    }
+}
+
+// again, is there srs no way to describe this same functionality in the return type of the innov_matching function?
+pub enum InnovDisjoint<'a, R: Rng> {
+    EqFitness(Diff<'a>),
+    MoreFit { iter: SymDiff<'a>, rng: &'a mut R },
+}
+
+impl<'a, R: Rng> Iterator for InnovDisjoint<'a, R> {
     type Item = &'a Edge;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            Self::Diff(diff) => diff.next(),
-            Self::SymDiff { iter, rng } => iter.find(|_| rng.gen())
+            Self::EqFitness(diff) => diff.next(),
+            Self::MoreFit { iter, rng } => iter.find(|_| rng.gen())
         }
     }
 }
+
