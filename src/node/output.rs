@@ -1,7 +1,6 @@
 extern crate alloc;
 use crate::{pop::Pop, node::*, node::Accum};
-use core::{array, cell::Cell, cmp, fmt, hash::{Hash, Hasher}, ptr, slice};
-use alloc::{boxed::Box, vec::Vec};
+use core::{cell::Cell, cmp, fmt, hash::{Hash, Hasher}, ptr};
 use hashbrown::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -35,7 +34,7 @@ impl Output {
         self.innov - I
     }
 
-    pub fn eval<'a>(&'a self, map: &mut HashMap<Head<'a>, Accum>) -> f32 {
+    pub fn eval<'a>(&'a self, map: &mut HashMap<&'a Head<'a>, Accum>) -> f32 {
         let input = map.get_mut(&Head::from(self)).unwrap().eval(self.aggregator);
         self.activate(self.bias() + (self.response() * input))
     }
@@ -59,43 +58,6 @@ impl Hash for Output {
         self.response.to_bits().hash(state);
         self.bias.to_bits().hash(state);
         self.innov.hash(state);
-    }
-}
-
-#[derive(Clone)]
-pub struct Outputs<const O: usize>(Box<[Output; O]>);
-
-impl<const O: usize> Outputs<O> {
-    pub fn new<const I: usize>() -> Self {
-        Self(Box::new(array::from_fn::<_, O, _>(Output::new::<I>)))
-    }
-
-    pub fn get(&self, index: usize) -> Option<&Output> {
-        self.0.get(index)
-    }
-
-    pub fn eval_nth<'a>(&'a self, n: usize, map: &mut HashMap<Head<'a>, Accum>) -> f32 {
-        self.get(n).unwrap().eval(map)
-    }
-
-    pub fn iter(&self) -> slice::Iter<'_, Output> {
-        self.0.iter()
-    }
-}
-
-impl<const O: usize> fmt::Debug for Outputs<O> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.iter().fold(&mut f.debug_map(), |f, ref output| {
-            f.key_with(|f| fmt::Pointer::fmt(output, f)).value(output)
-        }).finish()
-    }
-}
-
-impl<const O: usize> TryFrom<Vec<Output>> for Outputs<O> {
-    type Error = <Box<[Output; O]> as TryFrom<Vec<Output>>>::Error;
-
-    fn try_from(value: Vec<Output>) -> Result<Self, Self::Error> {
-        Ok(Self(value.try_into()?))
     }
 }
 

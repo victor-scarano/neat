@@ -20,7 +20,7 @@ fn mutate_split_edge<const I: usize, const O: usize>(
 
 #[test]
 fn it_works() {
-    let mut genome = Genome::<1, 1>::new();
+    let mut genome = Genome::<1, 1>::default();
 
     let mut rng = SmallRng::seed_from_u64(0);
     genome.mutate_add_edge(&mut rng);

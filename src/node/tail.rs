@@ -2,36 +2,6 @@ extern crate alloc;
 use crate::node::*;
 use core::fmt;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum RawTail {
-    Input(RawInput),
-    Hidden(RawHidden),
-}
-
-impl RawTail {
-    pub fn upgrade(&self) -> Tail {
-        match self {
-            Self::Input(input) => {
-                let input = input.upgrade();
-                input.into()
-            }
-            Self::Hidden(hidden) => {
-                let hidden = hidden.upgrade();
-                hidden.into()
-            }
-        }
-    }
-}
-
-impl fmt::Pointer for RawTail {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Input(input) => fmt::Pointer::fmt(input, f),
-            Self::Hidden(hidden) => fmt::Pointer::fmt(hidden, f),
-        }
-    }
-}
-
 #[derive(Eq, Clone, Debug, Hash, PartialEq)]
 pub enum Tail<'a> {
     Input(&'a Input),
@@ -39,13 +9,6 @@ pub enum Tail<'a> {
 }
 
 impl Tail<'_> {
-    pub fn downgrade(&self) -> RawTail {
-        match self {
-            Self::Input(input) => RawTail::Input((*input).downgrade()),
-            Self::Hidden(hidden) => RawTail::Hidden((*hidden).downgrade())
-        }
-    }
-
     pub fn input(&self) -> Option<&Input> {
         match self {
             Self::Input(input) => Some(input),

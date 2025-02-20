@@ -1,16 +1,6 @@
 extern crate alloc;
-use crate::{edge::Edge, pop::Pop, node::*, node::Accum};
-use core::{
-    cell::{Cell, RefCell},
-    cmp,
-    fmt,
-    hash::{Hash, Hasher},
-    mem::{self, MaybeUninit},
-    ptr,
-    slice
-};
-use alloc::vec::Vec;
-use bumpalo::Bump;
+use crate::{arena::Arena, edge::Edge, node::{Accum, *}, pop::Pop};
+use core::{cell::Cell, cmp, fmt, hash::{Hash, Hasher}, ptr, slice};
 use hashbrown::HashMap;
 
 #[derive(Clone)]
@@ -29,8 +19,8 @@ impl Hidden {
     }
 
     pub fn from_edge(edge: &Edge) -> Self {
-        let curr_level = edge.tail().layer();
-        edge.head().update_layer(curr_level + 1);
+        let curr_level = edge.tail.layer();
+        edge.head.update_layer(curr_level + 1);
 
         Self {
             layer: Cell::new(curr_level),
@@ -42,7 +32,7 @@ impl Hidden {
         }
     }
 
-    pub fn eval<'a>(&'a self, weight: f32, map: &mut HashMap<Head<'a>, Accum>) -> f32 {
+    pub fn eval<'a>(&'a self, weight: f32, map: &mut HashMap<&'a Head<'a>, Accum>) -> f32 {
         let input = map.get_mut(&Head::from(self)).unwrap().eval(self.aggreg);
         weight * self.activate(self.bias() + (self.response() * input))
     }
@@ -88,113 +78,28 @@ impl PartialEq for Hidden {
     }
 }
 
-pub struct Hiddens<const CHUNK_LEN: usize = 32> {
-    bump: RefCell<Bump>,
+#[derive(Debug, Default)]
+pub struct Hiddens {
+    arena: Arena<Hidden>,
     len: usize,
 }
 
-impl<const CHUNK_LEN: usize> Hiddens<CHUNK_LEN> {
-    pub fn new() -> Self {
-        let bump = Bump::new();
-        bump.set_allocation_limit(Some(CHUNK_LEN * size_of::<Hidden>()));
-        Self { bump: RefCell::new(bump), len: 0 }
-    }
-
-    fn insert(&mut self, edge: &Edge) -> RawHidden {
+impl Hiddens {
+    fn insert<'a>(&mut self, edge: &Edge) -> &'a Hidden {
         self.len += 1;
-        let bump = self.bump.borrow();
-        RawHidden::from(bump.alloc(Hidden::from_edge(edge)))
+        self.arena.push(Hidden::from_edge(edge))
     }
 
-    pub fn split_edge(&mut self, edge: &Edge) -> (Edge, Edge) {
+    pub fn split_edge<'a>(&mut self, edge: &Edge<'a>) -> (Edge<'a>, Edge<'a>) {
+        edge.enabled.set(false);
         let middle = self.insert(edge);
-        let first = Edge::new(edge.tail(), middle.upgrade());
-        let last = Edge::new(middle.upgrade(), edge.head());
+        let first = Edge::new(edge.tail.clone(), middle);
+        let last = Edge::new(middle, edge.head.clone());
         (first, last)
     }
 
-    pub fn iter(&self) -> Iter<'_> {
-        let mut bump = self.bump.borrow_mut();
-        let mut chunks = bump.iter_allocated_chunks();
-        let mut hiddens = Vec::new();
-
-        if let Some(chunk) = chunks.next() {
-            let ptr = MaybeUninit::slice_as_ptr(chunk) as *const Hidden;
-
-            let len = match self.len % CHUNK_LEN {
-                0 => self.len,
-                non_zero => non_zero,
-            };
-
-            let chunk = unsafe { slice::from_raw_parts(ptr, len) };
-            hiddens.extend(chunk);
-        }
-
-        for chunk in chunks {
-            let chunk: &[Hidden] = unsafe { mem::transmute(chunk) };
-            hiddens.extend(chunk);
-        }
-
-        Iter(hiddens)
-    }
-}
-
-impl<const CHUNK_LEN: usize> Clone for Hiddens<CHUNK_LEN> {
-    fn clone(&self) -> Self {
-        let mut bump = self.bump.borrow_mut();
-        let mut chunks = bump.iter_allocated_chunks();
-
-        let bump = Bump::new();
-
-        if let Some(chunk) = chunks.next() {
-            let ptr = MaybeUninit::slice_as_ptr(chunk) as *const Hidden;
-
-            let len = match self.len % CHUNK_LEN {
-                0 => self.len,
-                non_zero => non_zero,
-            };
-
-            let chunk = unsafe { slice::from_raw_parts(ptr, len) };
-            bump.alloc_slice_clone(chunk);
-        }
-
-        for chunk in chunks {
-            // once again, if the size of a chunk isnt a multiple of the size of
-            // a hidden node, then there might be extra bytes that attempt to
-            // get mapped as a hidden node (as far as i understand transmute)
-            let slice: &[Hidden] = unsafe { mem::transmute(chunk) };
-            bump.alloc_slice_clone(slice);
-        }
-
-        Self { bump: RefCell::new(bump), len: self.len }
-    }
-}
-
-impl fmt::Debug for Hiddens {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // note that this debug impl does not reflect the fact that this struct
-        // internally manages a bump allocator or a length field.
-        f.debug_list().entries(self.iter()).finish()
-    }
-}
-
-pub struct Iter<'a>(Vec<&'a Hidden>);
-
-impl<'a> Iterator for Iter<'a> {
-    type Item = &'a Hidden;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.pop()
-    }
-}
-
-impl fmt::Debug for Iter<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: check if Vec::as_slice makes any difference in debug output.
-        // the goal is for the debug output to match slice::Iter's debug output,
-        // not only to be consistent with the std lib, but also to be consistent
-        // with the other debug outputs of the other node collections.
-        f.debug_tuple("Iter").field(&self.0.as_slice()).finish()
+    pub fn iter(&self) -> slice::Iter<'_, Hidden> {
+        todo!()
     }
 }
 

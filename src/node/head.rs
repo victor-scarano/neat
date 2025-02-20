@@ -2,30 +2,6 @@ extern crate alloc;
 use crate::node::*;
 use core::fmt;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum RawHead {
-    Hidden(RawHidden),
-    Output(RawOutput),
-}
-
-impl RawHead {
-    pub fn upgrade(&self) -> Head {
-        match self {
-            Self::Hidden(hidden) => hidden.upgrade().into(),
-            Self::Output(output) => output.upgrade().into(),
-        }
-    }
-}
-
-impl fmt::Pointer for RawHead {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Hidden(hidden) => fmt::Pointer::fmt(hidden, f),
-            Self::Output(output) => fmt::Pointer::fmt(output, f),
-        }
-    }
-}
-
 #[derive(Eq, Clone, Debug, Hash, PartialEq)]
 pub enum Head<'a> {
     Hidden(&'a Hidden),
@@ -33,13 +9,6 @@ pub enum Head<'a> {
 }
 
 impl Head<'_> {
-    pub fn downgrade(&self) -> RawHead {
-        match self {
-            Self::Hidden(hidden) => RawHead::Hidden(hidden.downgrade()),
-            Self::Output(output) => RawHead::Output(output.downgrade())
-        }
-    }
-
     pub fn hidden(&self) -> Option<&Hidden> {
         match self {
             Self::Hidden(hidden) => Some(hidden),

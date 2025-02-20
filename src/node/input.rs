@@ -1,7 +1,6 @@
 extern crate alloc;
 use crate::{node::Node, pop::Pop};
-use core::{array, fmt, hash, slice, ptr};
-use alloc::{boxed::Box, vec::Vec};
+use core::{fmt, hash, ptr};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Input {
@@ -44,39 +43,6 @@ impl Eq for Input {}
 impl hash::Hash for Input {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.innov.hash(state);
-    }
-}
-
-#[derive(Clone)]
-pub struct Inputs<const I: usize>(Box<[Input; I]>);
-
-impl<const I: usize> Inputs<I> {
-    pub fn new() -> Self {
-        Self(Box::new(array::from_fn::<_, I, _>(Input::new)))
-    }
-
-    pub fn get(&self, index: usize) -> Option<&Input> {
-        self.0.get(index)
-    }
-
-    pub fn iter(&self) -> slice::Iter<'_, Input> {
-        self.0.iter()
-    }
-}
-
-impl<const I: usize> fmt::Debug for Inputs<I> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.iter().fold(&mut f.debug_map(), |f, ref input| {
-            f.key_with(|f| fmt::Pointer::fmt(input, f)).value(input)
-        }).finish()
-    }
-}
-
-impl<const I: usize> TryFrom<Vec<Input>> for Inputs<I> {
-    type Error = <Box<[Input; I]> as TryFrom<Vec<Input>>>::Error;
-
-    fn try_from(value: Vec<Input>) -> Result<Self, Self::Error> {
-        Ok(Self(value.try_into()?))
     }
 }
 

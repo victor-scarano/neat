@@ -1,32 +1,20 @@
 extern crate alloc;
 use crate::{edge::*, fitness::Fitness, node::*};
 use core::array;
+use alloc::boxed::Box;
 use hashbrown::{HashMap, HashSet};
 use rand::{Rng, seq::IteratorRandom};
 
-#[derive(Clone, Debug)]
-pub struct Genome<const I: usize, const O: usize> {
-    pub inputs: Inputs<I>,
-    pub outputs: Outputs<O>,
+#[derive(Debug)]
+pub struct Genome<'a, const I: usize, const O: usize> {
+    pub inputs: Box<[Input; I]>,
+    pub outputs: Box<[Output; O]>,
     pub hiddens: Hiddens,
-    pub edges: Edges,
+    pub edges: Edges<'a>,
     pub fitness: Fitness,
 }
 
-impl<const I: usize, const O: usize> Genome<I, O> {
-    pub fn new() -> Self {
-        assert_ne!(I, 0);
-        assert_ne!(O, 0);
-
-        Self {
-            inputs: Inputs::new(),
-            outputs: Outputs::new::<I>(),
-            hiddens: Hiddens::new(),
-            edges: Edges::new(),
-            fitness: Fitness::from(0.0),
-        }
-    }
-
+impl<'a, const I: usize, const O: usize> Genome<'a, I, O> {
     pub fn mutate_add_edge(&mut self, rng: &mut impl Rng) {
         let tail = self.inputs.iter().map(Tail::from)
             .chain(self.hiddens.iter().map(Tail::from))
@@ -62,15 +50,15 @@ impl<const I: usize, const O: usize> Genome<I, O> {
 
         // needs to iter in ordered
         for edge in self.edges.iter().take_while(|edge| edge.enabled.get()) {
-            let eval = match edge.tail() {
+            let eval = match edge.tail {
                 Tail::Input(input) => input.eval(edge.weight, inputs),
                 Tail::Hidden(hidden) => hidden.eval(edge.weight, &mut map),
             };
 
-            map.entry(edge.head()).or_insert(Accum::new()).push(eval);
+            map.entry(&edge.head).or_insert(Accum::new()).push(eval);
         }
 
-        array::from_fn::<_, O, _>(|idx| self.outputs.eval_nth(idx, &mut map))
+        array::from_fn::<_, O, _>(|idx| self.outputs.get(idx).unwrap().eval(&mut map))
     }
 
     pub fn compat_dist(&self) -> f32 {
@@ -79,12 +67,27 @@ impl<const I: usize, const O: usize> Genome<I, O> {
 
     pub fn crossover(lhs: Self, rhs: Self, rng: &mut impl Rng) -> Self {
         // choose edges for child that will be inherited from parents
-        let int = Edges::innov_matching(&lhs, &rhs, rng);
-        let diff = Edges::innov_disjoint(&lhs, &rhs, rng);
+        // let int = Edges::innov_matching(&lhs, &rhs, rng);
+        // let diff = Edges::innov_disjoint(&lhs, &rhs, rng);
 
         let tails = HashSet::<Tail>::new();
         let heads = HashSet::<Head>::new();
 
         todo!()
+    }
+}
+
+impl<const I: usize, const O: usize> Default for Genome<'_, I, O> {
+    fn default() -> Self {
+        assert_ne!(I, 0);
+        assert_ne!(O, 0);
+
+        Self {
+            inputs: Box::new(array::from_fn::<_, I, _>(Input::new)),
+            outputs: Box::new(array::from_fn::<_, O, _>(Output::new::<I>)),
+            hiddens: Hiddens::default(),
+            edges: Edges::default(),
+            fitness: Fitness::default(),
+        }
     }
 }

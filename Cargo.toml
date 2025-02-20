@@ -8,9 +8,8 @@ repository = "https://github.com/victor-scarano/neat"
 keywords = ["neat"]
 
 [dependencies]
-bumpalo = { version = "3.16.0", default-features = false, features = ["allocator_api", "boxed"] }
-hashbrown = { version = "0.15.2", default-features = false, features = ["default-hasher"] }
-rand = { version = "0.8.5", default-features = false, features = ["alloc", "small_rng"] }
+hashbrown = { version = "0.15.2", features = ["default-hasher"], default-features = false }
+rand = { version = "0.9", features = ["alloc", "small_rng"], default-features = false }
 
 # POSSIBLE CATEGORY SLUGS
 # algorithms
